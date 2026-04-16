@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Database (never commit live trading data)
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets (CRITICAL: never commit API keys)
+.env
+*.env
+quantsim.json
+quantsim.toml
+
+# Reports and outputs
+reports/
+*.html
+*.pdf
+/tmp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
