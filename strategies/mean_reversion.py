@@ -231,13 +231,15 @@ class RSIMeanReversion(Strategy):
 
 class PairsTradingStrategy(Strategy):
     """
-    Cointegration-based pairs trading with Kalman filter hedge ratio estimation.
-    
-    The Kalman filter updates the hedge ratio online, one bar at a time.
-    This is inherently point-in-time correct (no look-ahead bias).
+    Pairs trading on a Kalman-filter hedge ratio. No cointegration test is
+    run; pick pairs with one beforehand.
+
+    The filter updates once per date, after both legs have a bar with the
+    same timestamp. Prices are divided by asset B's first price before the
+    update, so the hedge ratio does not depend on the price level.
     
     Entry: z-score of spread > 2.0 (short A, long B) or < -2.0 (long A, short B).
-    Exit: z-score crosses 0, or stop at ±3.5 (cointegration breakdown).
+    Exit: z-score crosses 0, or stop at ±3.5 (the relationship has broken down).
     
     Reference: Vidyamurthy (2004)
     """
@@ -275,9 +277,9 @@ class PairsTradingStrategy(Strategy):
 
         self._spread_history: List[float] = []
         self._current_pair_direction: int = 0  # +1 long A, -1 short A, 0 flat
-        self._bars_seen_a = 0
-        self._bars_seen_b = 0
-        self._latest_prices: Dict[str, float] = {}
+        self._latest_bars: Dict[str, tuple] = {}
+        self._last_update_ts = None
+        self._price_scale: Optional[float] = None
 
     def _kalman_update(self, price_a: float, price_b: float) -> float:
         """
@@ -306,34 +308,27 @@ class PairsTradingStrategy(Strategy):
             return
 
         self._tick(asset_id)
+        self._latest_bars[asset_id] = (event.timestamp, float(event.adj_close or event.close))
 
-        # Collect latest prices
-        bars = data_handler.get_latest_bars(asset_id, n=1)
-        if bars.empty:
+        bar_a = self._latest_bars.get(self.asset_a)
+        bar_b = self._latest_bars.get(self.asset_b)
+        if bar_a is None or bar_b is None or bar_a[0] != bar_b[0]:
             return
-
-        closes = bars["adj_close"] if "adj_close" in bars.columns else bars["close"]
-        self._latest_prices[asset_id] = float(closes.iloc[-1])
-
-        # Only process when we have both prices
-        if len(self._latest_prices) < 2:
+        if bar_a[0] == self._last_update_ts:
             return
+        self._last_update_ts = bar_a[0]
 
-        if not self._is_warmed_up(self.asset_a) or not self._is_warmed_up(self.asset_b):
-            # Still warm up; update Kalman but don't trade
-            price_a = self._latest_prices.get(self.asset_a, 0)
-            price_b = self._latest_prices.get(self.asset_b, 0)
-            if price_a > 0 and price_b > 0:
-                self._kalman_update(price_a, price_b)
-            return
-
-        price_a = self._latest_prices[self.asset_a]
-        price_b = self._latest_prices[self.asset_b]
-
+        price_a, price_b = bar_a[1], bar_b[1]
         if price_a <= 0 or price_b <= 0:
             return
+        if self._price_scale is None:
+            self._price_scale = price_b
+        price_a /= self._price_scale
+        price_b /= self._price_scale
 
         spread = self._kalman_update(price_a, price_b)
+        if not self._is_warmed_up(self.asset_a) or not self._is_warmed_up(self.asset_b):
+            return
         self._spread_history.append(spread)
 
         if len(self._spread_history) > self.z_window * 3:

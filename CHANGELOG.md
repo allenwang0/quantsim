@@ -27,3 +27,8 @@ Fixes in this section change reported backtest results.
 - Sortino ratio is the mean excess return over the downside deviation
   across all periods, annualized by sqrt(252). Before, it divided CAGR by
   the standard deviation of negative days only.
+- Pairs strategy: the Kalman hedge ratio updates once per date with both
+  legs' prices from that date, and is invariant to the price level. Before,
+  it updated twice per date, the first time pairing one leg's new price
+  with the other's old one, which also halved the effective z-score window.
+  The strategy no longer claims a cointegration test it does not run.

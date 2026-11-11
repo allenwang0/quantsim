@@ -166,7 +166,7 @@ def _register_all_strategies():
     )
 
     regs += [
-        ('pairs', PairsTradingStrategy, 'Cointegration pairs trading (Kalman)', 'mean_reversion', ['equity']),
+        ('pairs', PairsTradingStrategy, 'Pairs trading, Kalman-filter hedge ratio', 'mean_reversion', ['equity']),
         ("low_vol", LowVolatilityFactor, "Low volatility factor (Baker et al.)", "factor", ["equity"]),
         ("covered_call", CoveredCallStrategy, "Covered call income strategy", "options", ["equity", "etf"], {}),
         ("iron_condor", IronCondorStrategy, "Iron condor theta decay", "options", ["equity", "etf"], {}),
