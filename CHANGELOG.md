@@ -24,3 +24,6 @@ Fixes in this section change reported backtest results.
   `deflated_sharpe_significant` now means DSR > 0.95. Before, an annualized
   Sharpe was mixed with a daily sample size and the result was a z-score
   tested against 0.
+- Sortino ratio is the mean excess return over the downside deviation
+  across all periods, annualized by sqrt(252). Before, it divided CAGR by
+  the standard deviation of negative days only.

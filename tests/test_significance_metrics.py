@@ -1,5 +1,5 @@
 """
-Deflated Sharpe ratio against hand-computed values and its contract.
+Deflated Sharpe ratio and Sortino ratio against hand-computed values.
 
 The deflated Sharpe ratio is the check that keeps a parameter sweep honest,
 so it must be a probability, fall as more trials are run, and match the
@@ -67,3 +67,19 @@ def test_compute_all_reports_dsr_as_probability_with_095_threshold():
 
     assert 0.0 <= results["deflated_sharpe_ratio"] <= 1.0
     assert results["deflated_sharpe_significant"] == (results["deflated_sharpe_ratio"] > 0.95)
+
+
+def test_sortino_uses_downside_deviation_over_all_periods():
+    """
+    Returns 2%, -1%, 3%, -2%, 1%, 0% with a 0% target:
+      mean = 0.005
+      downside deviation = sqrt((0.01^2 + 0.02^2) / 6) = 0.0091287
+      Sortino = 0.005 / 0.0091287 * sqrt(252) = 8.694826
+    """
+    returns = [0.02, -0.01, 0.03, -0.02, 0.01, 0.0]
+    equity = 100.0 * np.cumprod([1.0] + [1 + r for r in returns])
+    curve = pd.Series(equity, index=pd.date_range("2020-01-01", periods=7, freq="B"))
+
+    results = PerformanceAnalytics(risk_free_rate=0.0).compute_all(curve)
+
+    assert results["sortino_ratio"] == pytest.approx(8.694826, rel=1e-6)

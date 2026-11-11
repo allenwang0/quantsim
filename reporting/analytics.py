@@ -132,10 +132,13 @@ class PerformanceAnalytics:
         sharpe = float(excess_returns.mean() / excess_returns.std() * np.sqrt(252)) if excess_returns.std() > 0 else 0
         results["sharpe_ratio"] = sharpe
 
-        # Sortino: use only downside deviations below 0
-        downside = daily_returns[daily_returns < 0]
-        downside_vol = float(downside.std() * np.sqrt(252)) if len(downside) > 0 else 1e-8
-        sortino = float((cagr - self.risk_free_rate) / downside_vol) if downside_vol > 0 else 0
+        # Sortino: downside deviation below the risk-free target, over all periods
+        shortfall = np.minimum(excess_returns.to_numpy(), 0.0)
+        downside_dev = float(np.sqrt(np.mean(shortfall**2)))
+        sortino = (
+            float(excess_returns.mean() / downside_dev * np.sqrt(TRADING_DAYS_PER_YEAR))
+            if downside_dev > 0 else 0.0
+        )
         results["sortino_ratio"] = sortino
 
         # Drawdown metrics
