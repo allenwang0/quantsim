@@ -122,10 +122,9 @@ class VectorizedBacktester:
     Speed: ~1ms for 10 years of daily data on 50 assets (vs ~2s for event-driven).
     This enables parameter sweeps across hundreds of configurations in seconds.
     
-    CRITICAL: Vectorized backtests are MORE susceptible to look-ahead bias
-    because there is no event loop enforcing temporal ordering.
-    All signal computations must use shift(1) or equivalent to prevent
-    signals from using same-bar data.
+    Signal functions must use only data through bar t for the signal at t.
+    The simulator applies the one-bar execution delay; signal functions do
+    not shift.
     """
 
     def __init__(
@@ -162,19 +161,14 @@ class VectorizedBacktester:
         
         signal_fn(prices, returns, **kwargs) -> pd.DataFrame
             Returns a signal DataFrame (same shape as prices)
-            with values in {-1, 0, 1}.
-            MUST shift signals by 1 to avoid look-ahead bias.
+            with values in {-1, 0, 1}: the position wanted at each bar's
+            close, using data through that bar and no shift. The simulator
+            executes it one bar later.
         """
         t0 = time.perf_counter()
 
         signals = signal_fn(self.prices, self.returns, **(signal_kwargs or {}))
         signals = signals.reindex(self.prices.index).fillna(0)
-
-        # Validate no future data used: signals at t must only use data through t-1
-        # We enforce this by shifting: the signal_fn should already do this,
-        # but we add an extra shift as a safety net.
-        # Comment this out if signal_fn explicitly handles shifting.
-        # signals = signals.shift(1).fillna(0)
 
         # Convert to numpy for Numba
         prices_np = self.prices.values.astype(np.float64)
@@ -287,10 +281,7 @@ def sma_crossover_signal(
     slow: int = 200,
     long_only: bool = True,
 ) -> pd.DataFrame:
-    """
-    SMA crossover signal. Returns DataFrame of {-1, 0, 1}.
-    Uses .shift(1) to prevent look-ahead bias.
-    """
+    """SMA crossover signal. Returns DataFrame of {-1, 0, 1}."""
     sma_fast = prices.rolling(fast).mean()
     sma_slow = prices.rolling(slow).mean()
 
@@ -298,9 +289,7 @@ def sma_crossover_signal(
     signal[sma_fast > sma_slow] = 1
     if not long_only:
         signal[sma_fast < sma_slow] = -1
-
-    # Shift by 1: signal at bar T uses data through T-1, executes at T+1
-    return signal.shift(1).fillna(0)
+    return signal
 
 
 def rsi_signal(
@@ -330,7 +319,7 @@ def rsi_signal(
     if not long_only:
         signal[rsi > overbought] = -1
 
-    return signal.shift(1).fillna(0)
+    return signal
 
 
 def momentum_signal(
@@ -346,7 +335,7 @@ def momentum_signal(
     signal[ret_12_1 > 0] = 1
     if not long_only:
         signal[ret_12_1 < 0] = -1
-    return signal.shift(1).fillna(0)
+    return signal
 
 
 def bollinger_signal(
@@ -366,7 +355,7 @@ def bollinger_signal(
     signal[prices < lower] = 1   # oversold: go long
     if not long_only:
         signal[prices > upper] = -1  # overbought: go short
-    return signal.shift(1).fillna(0)
+    return signal
 
 
 def donchian_signal(
@@ -383,7 +372,7 @@ def donchian_signal(
     signal[prices > high] = 1
     if not long_only:
         signal[prices < low] = -1
-    return signal.shift(1).fillna(0)
+    return signal
 
 
 def equal_weight_rebalance_signal(
@@ -393,4 +382,4 @@ def equal_weight_rebalance_signal(
 ) -> pd.DataFrame:
     """Buy and hold equal weight, rebalance monthly."""
     signal = pd.DataFrame(1, index=prices.index, columns=prices.columns)
-    return signal.shift(1).fillna(0)
+    return signal
