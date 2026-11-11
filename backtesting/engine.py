@@ -226,6 +226,8 @@ class BacktestEngine:
     def _handle_bar(self, event: BarEvent) -> None:
         self._bars_processed += 1
 
+        self.execution_handler.on_bar(event)
+
         # Update portfolio market prices
         self.portfolio_manager.on_bar(event)
 

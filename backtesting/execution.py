@@ -12,7 +12,7 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import numpy as np
 
 from core.events import (
@@ -210,10 +210,11 @@ class ExecutionHandler(ABC):
 
 class BacktestExecutionHandler(ExecutionHandler):
     """
-    Simulates fills for backtesting. Immediately computes FillEvent.
-    
-    This is the ONLY module that differs from paper trading.
-    Everything else is identical between modes.
+    Simulates fills for backtesting.
+
+    An order created while bar T is processed is held until bar T+1 for that
+    asset arrives and fills at T+1's open (or T+1's VWAP proxy). Only the
+    explicit IMMEDIATE_CLOSE mode fills in bar T, at T's close.
     """
 
     def __init__(
@@ -229,35 +230,36 @@ class BacktestExecutionHandler(ExecutionHandler):
         self._slippage = slippage_model or VolumeProportionalSlippage()
         self._commission = commission_model or ZeroCommission()
         self._fill_model = fill_model or FillModel(FillModel.NEXT_BAR_OPEN)
+        self._pending: Dict[str, List[OrderEvent]] = {}
 
         # ADV cache: updated when we process bars
         self._adv_cache: Dict[str, float] = {}
 
     def execute_order(self, order: OrderEvent) -> Optional[FillEvent]:
-        """
-        Given an OrderEvent, simulate a fill using the current bar data.
-        Next-bar-open fill by default: signal at T executes at T+1 open.
-        """
+        """Fill now at T's close (IMMEDIATE_CLOSE) or hold for the next bar."""
+        if self._fill_model.mode == FillModel.IMMEDIATE_CLOSE:
+            return self._fill(order, order.timestamp)
+        self._pending.setdefault(order.asset_id, []).append(order)
+        return None
+
+    def on_bar(self, event) -> None:
+        """Fill orders held from earlier bars, using this bar's prices."""
+        for order in self._pending.pop(event.asset_id, []):
+            self._fill(order, event.timestamp)
+
+    def _fill(self, order: OrderEvent, timestamp) -> Optional[FillEvent]:
         asset_id = order.asset_id
 
-        # Current bar (for immediate-close fills)
         current_bar = self._data.get_current_bar(asset_id)
-        current_bar_dict = None
-        if current_bar is not None:
-            current_bar_dict = {
-                "open": float(current_bar.get("adj_open", current_bar.get("open", 0))),
-                "high": float(current_bar.get("adj_high", current_bar.get("high", 0))),
-                "low": float(current_bar.get("adj_low", current_bar.get("low", 0))),
-                "close": float(current_bar.get("adj_close", current_bar.get("close", 0))),
-                "volume": int(current_bar.get("volume", 0)),
-            }
-
-        # For next-bar-open, we need the next bar
-        # In the event-driven model, we schedule the fill for the NEXT bar
-        # For simplicity in the backtester, we use the current bar's open as T+1 open
-        # (this is valid because we're always one step behind in the event loop)
-        if current_bar_dict is None:
+        if current_bar is None:
             return None
+        current_bar_dict = {
+            "open": float(current_bar.get("adj_open", current_bar.get("open", 0))),
+            "high": float(current_bar.get("adj_high", current_bar.get("high", 0))),
+            "low": float(current_bar.get("adj_low", current_bar.get("low", 0))),
+            "close": float(current_bar.get("adj_close", current_bar.get("close", 0))),
+            "volume": int(current_bar.get("volume", 0)),
+        }
 
         # Get 20-day ADV for slippage model
         adv = self._adv_cache.get(asset_id, 0)
@@ -271,7 +273,7 @@ class BacktestExecutionHandler(ExecutionHandler):
         fill_result = self._fill_model.compute_fill(
             order=order,
             current_bar=current_bar_dict,
-            next_bar=current_bar_dict,  # same bar for daily backtesting
+            next_bar=current_bar_dict,
             adv_20=adv,
         )
 
@@ -320,7 +322,7 @@ class BacktestExecutionHandler(ExecutionHandler):
             expiration=order.expiration,
             strike=order.strike,
             right=order.right,
-            timestamp=order.timestamp,
+            timestamp=timestamp,
         )
 
         self._queue.put(fill)
