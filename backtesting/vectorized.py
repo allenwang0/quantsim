@@ -46,14 +46,20 @@ def _simulate_portfolio_numba(
     initial_capital: float,
     commission_rate: float,        # fraction of trade value
     slippage_pct: float,           # fraction of price per trade
-    position_size_pct: float,      # max fraction of capital per position
+    position_size_pct: float,      # fraction of equity per position at entry
+    rebalance_threshold: float = np.inf,
 ) -> Tuple:
     """
-    JIT-compiled portfolio simulation. Runs the full backtest in microseconds.
+    JIT-compiled portfolio simulation.
     Returns (equity_curve, positions_matrix, trade_count).
-    
-    Signal convention: +1 = long, -1 = short, 0 = flat
-    Execution: signals[t] execute at prices[t+1] (next bar open proxy)
+
+    Signal convention: +1 = long, -1 = short, 0 = flat. signals[t] is the
+    position wanted at bar t's close; it executes at prices[t + 1].
+
+    A position is sized from equity (cash plus marked positions) when its
+    direction changes. While the direction holds it is resized only if it has
+    drifted from its target by more than rebalance_threshold, measured as
+    |target - held| / |target|. The default, inf, never resizes.
     """
     n_bars, n_assets = prices.shape
     equity_curve = np.zeros(n_bars)
@@ -65,32 +71,35 @@ def _simulate_portfolio_numba(
     current_positions = np.zeros(n_assets)
 
     for t in range(1, n_bars):
-        # Update positions from previous signal
         prev_signal = signals[t - 1]
-        exec_price = prices[t]  # execute at next bar's price
+        exec_price = prices[t]
+
+        equity = cash
+        for a in range(n_assets):
+            equity += current_positions[a] * exec_price[a]
 
         for a in range(n_assets):
             target_direction = prev_signal[a]
+            held_direction = np.sign(current_positions[a])
 
-            # Determine target position
             if target_direction == 0:
                 target_units = 0.0
             else:
-                # Size based on available capital
-                capital_per_pos = cash * position_size_pct
-                target_units = (capital_per_pos / exec_price[a]) * target_direction
+                target_units = (equity * position_size_pct / exec_price[a]) * target_direction
+                if target_direction == held_direction:
+                    drift = abs(target_units - current_positions[a]) / abs(target_units)
+                    if drift <= rebalance_threshold:
+                        target_units = current_positions[a]
 
-            # Compute trade
             trade_units = target_units - current_positions[a]
 
-            if abs(trade_units) > 0.001:
+            if trade_units != 0.0:
                 trade_value = abs(trade_units) * exec_price[a]
                 cost = trade_value * (commission_rate + slippage_pct)
                 cash -= trade_units * exec_price[a] + cost
                 current_positions[a] = target_units
                 trade_count += 1
 
-        # Update equity
         positions[t] = current_positions.copy()
         market_value = 0.0
         for a in range(n_assets):
