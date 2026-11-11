@@ -18,6 +18,7 @@ Override via environment variables:
     QUANTSIM_SLIPPAGE=volume
     ALPACA_API_KEY=...
     ALPACA_SECRET_KEY=...
+    ALPACA_PAPER=true          # "false" also needs QUANTSIM_ALLOW_LIVE=1
     FRED_API_KEY=...
 
 Override via config file (quantsim.toml or quantsim.json):
@@ -75,6 +76,27 @@ class BacktestConfig:
     fixed_spread_bps: float = 5.0
 
 
+def resolve_alpaca_paper() -> bool:
+    """
+    Decide whether Alpaca orders go to the paper account.
+
+    Unset ALPACA_PAPER means paper. Only "true" or "false" (any case) are
+    accepted; anything else raises. Live trading also needs
+    QUANTSIM_ALLOW_LIVE=1, so a single mistyped variable cannot reach a
+    live account.
+    """
+    raw = os.environ.get("ALPACA_PAPER")
+    if raw is None or raw.lower() == "true":
+        return True
+    if raw.lower() != "false":
+        raise ValueError(f"ALPACA_PAPER must be 'true' or 'false', got {raw!r}")
+    if os.environ.get("QUANTSIM_ALLOW_LIVE") != "1":
+        raise ValueError(
+            "ALPACA_PAPER=false selects a live account; set QUANTSIM_ALLOW_LIVE=1 to confirm"
+        )
+    return False
+
+
 @dataclass
 class LiveTradingConfig:
     alpaca_api_key: str = field(
@@ -83,9 +105,7 @@ class LiveTradingConfig:
     alpaca_secret_key: str = field(
         default_factory=lambda: os.environ.get("ALPACA_SECRET_KEY", "")
     )
-    alpaca_paper: bool = field(
-        default_factory=lambda: os.environ.get("ALPACA_PAPER", "true").lower() == "true"
-    )
+    alpaca_paper: bool = field(default_factory=resolve_alpaca_paper)
     poll_interval_seconds: float = 60.0  # for daily-bar strategies
     fill_poll_seconds: float = 5.0
     market_open_hour_et: int = 9

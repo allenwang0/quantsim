@@ -37,6 +37,7 @@ from typing import Optional, Dict, List
 import pandas as pd
 import numpy as np
 
+from core.config import resolve_alpaca_paper
 from core.events import BarEvent, FillEvent, OrderEvent, OrderSide, AssetType
 from core.event_queue import EventQueue
 from data.data_handler import DataHandler
@@ -46,7 +47,6 @@ logger = logging.getLogger(__name__)
 # Alpaca credentials from environment
 ALPACA_API_KEY = os.environ.get("ALPACA_API_KEY", "")
 ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY", "")
-ALPACA_PAPER = os.environ.get("ALPACA_PAPER", "true").lower() == "true"
 
 try:
     from alpaca.trading.client import TradingClient
@@ -134,7 +134,7 @@ class AlpacaTradingClient:
         self._client = TradingClient(
             api_key=ALPACA_API_KEY,
             secret_key=ALPACA_SECRET_KEY,
-            paper=ALPACA_PAPER,
+            paper=resolve_alpaca_paper(),
         )
 
     def get_account(self) -> Dict:
