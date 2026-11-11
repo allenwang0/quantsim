@@ -262,7 +262,7 @@ class HierarchicalRiskParity:
 
         # Step 1: Correlation-based distance matrix
         corr = returns.corr().fillna(0)
-        dist = np.sqrt((1 - corr) / 2).values
+        dist = np.sqrt((1 - corr) / 2).to_numpy(copy=True)
         np.fill_diagonal(dist, 0)
 
         # Step 2: Hierarchical clustering
