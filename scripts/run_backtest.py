@@ -260,7 +260,7 @@ def _print_results(results):
         logger.info(f"  Sharpe:        {results['sharpe_ratio']:.3f}")
     if "deflated_sharpe_ratio" in results:
         dsr = results['deflated_sharpe_ratio']
-        sig = "✓ significant" if dsr > 0 else "✗ not significant"
+        sig = "✓ significant" if dsr > 0.95 else "✗ not significant"
         logger.info(f"  Deflated SR:   {dsr:.3f} ({sig})")
     if "max_drawdown" in results:
         logger.info(f"  Max Drawdown:  {results['max_drawdown']:.2%}")

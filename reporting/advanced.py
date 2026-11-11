@@ -347,13 +347,13 @@ def generate_full_report(
 
     # Summary verdict
     sharpe = core.get("sharpe_ratio", 0)
-    dsr = core.get("deflated_sharpe_ratio", -1)
+    dsr = core.get("deflated_sharpe_ratio", 0.0)
     max_dd = core.get("max_drawdown", -1)
     mc = report.get("monte_carlo", {})
     ci_low = mc.get("sharpe_ci_low", -99)
 
     verdict_lines = []
-    if dsr > 0:
+    if dsr > 0.95:
         verdict_lines.append(f"✓ Statistically significant (DSR={dsr:.2f})")
     else:
         verdict_lines.append(f"✗ Not statistically significant (DSR={dsr:.2f})")
@@ -377,7 +377,7 @@ def generate_full_report(
 
     report["verdict"] = {
         "lines": verdict_lines,
-        "proceed": dsr > 0 and sharpe > 0.3,
+        "proceed": dsr > 0.95 and sharpe > 0.3,
         "summary": " | ".join(verdict_lines),
     }
 

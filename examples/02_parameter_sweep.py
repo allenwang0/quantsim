@@ -80,13 +80,13 @@ print(results_df[display_cols].tail(3).to_string(index=False))
 
 # ── Key insight: DSR corrects for multiple comparisons ─────────────────────────
 top = results_df.iloc[0]
-n_significant = (results_df["deflated_sharpe_corrected"] > 0).sum()
+n_significant = (results_df["deflated_sharpe_corrected"] > 0.95).sum()
 
 print(f"\n{'='*65}")
 print("INTERPRETATION")
 print(f"{'='*65}")
 print(f"Configurations tested:    {len(results_df)}")
-print(f"Statistically significant (DSR > 0): {n_significant}/{len(results_df)}")
+print(f"Statistically significant (DSR > 0.95): {n_significant}/{len(results_df)}")
 print(f"Best raw Sharpe:          {results_df['sharpe_ratio'].max():.3f}")
 print(f"Best Deflated Sharpe:     {results_df['deflated_sharpe_corrected'].max():.3f}")
 

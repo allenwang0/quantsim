@@ -130,6 +130,8 @@ class WalkForwardOptimizer:
 
         window_results = []
         oos_equities = []
+        trial_sharpes = []
+        n_oos_obs = 0
 
         for window in windows:
             train_prices = self.prices.loc[window["train_start"]:window["train_end"]]
@@ -151,6 +153,7 @@ class WalkForwardOptimizer:
                 try:
                     result = train_backtester.run(signal_fn, signal_kwargs=kwargs)
                     obj_val = result.get(objective, -np.inf)
+                    trial_sharpes.append(result.get("sharpe_ratio", 0.0))
                     if obj_val > best_objective_val:
                         best_objective_val = obj_val
                         best_params = kwargs
@@ -174,6 +177,7 @@ class WalkForwardOptimizer:
                     test_result.get("_equity_curve", [initial_capital]),
                     name=f"window_{window['window_id']}",
                 )
+                n_oos_obs += max(len(oos_equity) - 1, 0)
             except Exception as e:
                 logger.warning(f"Test period failed for window {window['window_id']}: {e}")
                 test_result = {}
@@ -206,12 +210,15 @@ class WalkForwardOptimizer:
         sharpe_degradation = avg_is_sharpe - avg_oos_sharpe
 
         # Apply Deflated Sharpe for multiple comparisons
-        from reporting.analytics import PerformanceAnalytics
-        analytics = PerformanceAnalytics()
-        dsr = analytics._deflated_sharpe_ratio(
-            sharpe=avg_oos_sharpe,
-            n_obs=len(self.prices),
-            n_strategies=n_configs * len(windows),
+        from reporting.analytics import TRADING_DAYS_PER_YEAR, deflated_sharpe_ratio
+        per_period_trials = np.asarray(trial_sharpes, dtype=float) / np.sqrt(TRADING_DAYS_PER_YEAR)
+        dsr = deflated_sharpe_ratio(
+            sharpe=avg_oos_sharpe / np.sqrt(TRADING_DAYS_PER_YEAR),
+            n_obs=n_oos_obs,
+            n_trials=n_configs * len(windows),
+            trial_sharpe_variance=(
+                float(np.var(per_period_trials, ddof=1)) if len(per_period_trials) > 1 else None
+            ),
         )
 
         # Find most stable parameter set (appears most often as best)
@@ -236,13 +243,13 @@ class WalkForwardOptimizer:
             "most_stable_params": most_stable_params,
             "oos_win_rate": float((results_df["oos_sharpe"] > 0).mean()) if len(results_df) > 0 else 0,
             "summary": {
-                "pass": dsr > 0 and avg_oos_sharpe > 0.3,
+                "pass": dsr > 0.95 and avg_oos_sharpe > 0.3,
                 "warning": sharpe_degradation > 0.5,
                 "message": (
                     f"OOS Sharpe: {avg_oos_sharpe:.2f} (IS: {avg_is_sharpe:.2f}, "
                     f"degradation: {sharpe_degradation:.2f}). "
                     f"DSR: {dsr:.2f}. "
-                    f"{'VIABLE' if dsr > 0 else 'NOT SIGNIFICANT'}"
+                    f"{'VIABLE' if dsr > 0.95 else 'NOT SIGNIFICANT'}"
                 ),
             },
         }

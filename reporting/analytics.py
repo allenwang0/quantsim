@@ -15,6 +15,53 @@ from scipy import stats
 
 logger = logging.getLogger(__name__)
 
+TRADING_DAYS_PER_YEAR = 252
+EULER_MASCHERONI = 0.5772156649015329
+
+
+def deflated_sharpe_ratio(
+    sharpe: float,
+    n_obs: int,
+    n_trials: int = 1,
+    trial_sharpe_variance: Optional[float] = None,
+    skewness: float = 0.0,
+    kurtosis: float = 3.0,
+) -> float:
+    """
+    Deflated Sharpe ratio (Bailey and Lopez de Prado, 2014), a probability.
+
+    sharpe: per-period (not annualized) Sharpe ratio of the selected strategy.
+    n_obs: number of return observations behind it.
+    n_trials: number of configurations tried before selecting it.
+    trial_sharpe_variance: variance of the per-period Sharpe ratios across
+        those trials. When omitted, the sampling variance of a Sharpe
+        estimate under the null, 1 / (n_obs - 1), is used.
+    kurtosis: raw kurtosis (3 for normal returns), not excess kurtosis.
+
+    Returns the probability that the true Sharpe ratio exceeds the expected
+    maximum Sharpe of n_trials unskilled strategies. Above 0.95 is the
+    usual significance cut-off.
+    """
+    if n_obs < 2:
+        return 0.0
+    if trial_sharpe_variance is None:
+        trial_sharpe_variance = 1.0 / (n_obs - 1)
+
+    if n_trials > 1:
+        z_first = stats.norm.ppf(1 - 1.0 / n_trials)
+        z_second = stats.norm.ppf(1 - 1.0 / (n_trials * np.e))
+        expected_max = np.sqrt(trial_sharpe_variance) * (
+            (1 - EULER_MASCHERONI) * z_first + EULER_MASCHERONI * z_second
+        )
+    else:
+        expected_max = 0.0
+
+    sharpe_variance_factor = 1 - skewness * sharpe + (kurtosis - 1) / 4 * sharpe**2
+    if sharpe_variance_factor <= 0:
+        return 0.0
+    z = (sharpe - expected_max) * np.sqrt(n_obs - 1) / np.sqrt(sharpe_variance_factor)
+    return float(stats.norm.cdf(z))
+
 
 class PerformanceAnalytics:
     """
@@ -38,6 +85,7 @@ class PerformanceAnalytics:
         trades: Optional[pd.DataFrame] = None,
         benchmark: Optional[pd.Series] = None,
         n_strategies_tested: int = 1,  # for deflated Sharpe calculation
+        trial_sharpe_variance: Optional[float] = None,  # per-period, across trials
     ) -> Dict:
         """
         Master analytics computation. Returns full dict of all metrics.
@@ -102,16 +150,19 @@ class PerformanceAnalytics:
         results["calmar_ratio"] = calmar
 
         # ── Advanced Analytics ─────────────────────────────────────────────────
-        # Deflated Sharpe Ratio (Bailey et al. 2014)
-        dsr = self._deflated_sharpe_ratio(
-            sharpe=sharpe,
+        # Deflated Sharpe Ratio (Bailey and Lopez de Prado 2014), on per-period Sharpe
+        skewness = float(daily_returns.skew()) if len(daily_returns) > 2 else 0.0
+        excess_kurtosis = float(daily_returns.kurt()) if len(daily_returns) > 3 else 0.0
+        dsr = deflated_sharpe_ratio(
+            sharpe=sharpe / np.sqrt(TRADING_DAYS_PER_YEAR),
             n_obs=len(daily_returns),
-            n_strategies=n_strategies_tested,
-            skewness=float(daily_returns.skew()),
-            kurtosis=float(daily_returns.kurt()),
+            n_trials=n_strategies_tested,
+            trial_sharpe_variance=trial_sharpe_variance,
+            skewness=0.0 if np.isnan(skewness) else skewness,
+            kurtosis=3.0 + (0.0 if np.isnan(excess_kurtosis) else excess_kurtosis),
         )
         results["deflated_sharpe_ratio"] = dsr
-        results["deflated_sharpe_significant"] = dsr > 0
+        results["deflated_sharpe_significant"] = dsr > 0.95
 
         # Rolling metrics
         rolling_sharpe = self._rolling_sharpe(daily_returns, window=252)
@@ -175,58 +226,6 @@ class PerformanceAnalytics:
 
         avg_dd = float(np.mean(drawdown_magnitudes)) if drawdown_magnitudes else 0.0
         return drawdown, max_dd, avg_dd, max_duration
-
-    def _deflated_sharpe_ratio(
-        self,
-        sharpe: float,
-        n_obs: int,
-        n_strategies: int,
-        skewness: float = 0.0,
-        kurtosis: float = 0.0,
-    ) -> float:
-        """
-        Deflated Sharpe Ratio (Bailey, Borwein, Lopez de Prado, Zhu 2014).
-        
-        Adjusts Sharpe downward based on:
-        - Number of strategy configurations tested (multiple comparisons)
-        - Non-normality of returns (skewness, excess kurtosis)
-        - Sample size
-        
-        DSR > 0 means Sharpe is statistically significant given the number of
-        configurations tested. Require DSR > 0 before declaring any strategy viable.
-        """
-        if n_obs < 5:
-            return -1.0
-
-        # Expected maximum Sharpe under the null of zero true SR
-        # when testing n_strategies configurations
-        # Using the formula from Bailey et al.
-        gamma = 0.5772156649  # Euler-Mascheroni constant
-
-        # Expected maximum of n_strategies IID N(0,1) samples
-        e_max_sr = (
-            (1 - gamma) * stats.norm.ppf(1 - 1.0 / n_strategies)
-            + gamma * stats.norm.ppf(1 - 1.0 / (n_strategies * np.e))
-            if n_strategies > 1
-            else 0.0
-        )
-
-        # Variance adjustment for non-normality
-        # V[SR] ≈ (1 + 0.5*SR^2 - skew*SR + (kurt-3)/4 * SR^2) / T
-        var_sr = (
-            1 + 0.5 * sharpe**2 - skewness * sharpe + (kurtosis / 4) * sharpe**2
-        ) / max(n_obs - 1, 1)
-        std_sr = np.sqrt(var_sr)
-
-        if std_sr < 1e-8:
-            return 0.0
-
-        # PSR (Probabilistic Sharpe Ratio)
-        psr = stats.norm.cdf((sharpe - e_max_sr) / std_sr)
-
-        # DSR: convert PSR to z-score
-        dsr = float(stats.norm.ppf(psr)) if 0 < psr < 1 else (3.0 if psr >= 1 else -3.0)
-        return dsr
 
     def _rolling_sharpe(self, daily_returns: pd.Series, window: int = 252) -> pd.Series:
         """Rolling annualized Sharpe ratio."""

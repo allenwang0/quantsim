@@ -102,8 +102,8 @@ t0 = time.perf_counter()
 sweep_df = bt.parameter_sweep(sma_crossover_signal, param_grid)
 elapsed = (time.perf_counter() - t0) * 1000
 print(f"  {len(sweep_df)} configs in {elapsed:.0f}ms")
-n_significant = (sweep_df["deflated_sharpe_corrected"] > 0).sum()
-print(f"  Statistically significant (DSR > 0): {n_significant}/{len(sweep_df)}")
+n_significant = (sweep_df["deflated_sharpe_corrected"] > 0.95).sum()
+print(f"  Statistically significant (DSR > 0.95): {n_significant}/{len(sweep_df)}")
 print(f"\n  Top 3 configurations:")
 for _, row in sweep_df.head(3).iterrows():
     print(f"    fast={int(row.fast)}, slow={int(row.slow)} | "
@@ -208,7 +208,7 @@ print("\n" + "=" * 60)
 print("RESEARCH WORKFLOW COMPLETE")
 print("=" * 60)
 is_viable = (
-    wfo_results.get("deflated_sharpe_corrected", -1) > 0
+    wfo_results.get("deflated_sharpe_corrected", 0) > 0.95
     and (results.get("total_return") or 0) > 0
 )
 status = "✓ VIABLE — proceed to paper trading" if is_viable else "✗ NOT VIABLE — revisit hypothesis"

@@ -18,3 +18,9 @@ Fixes in this section change reported backtest results.
   remaining cash every bar, which inflated trade counts and cost drag.
 - Vectorized signal functions no longer shift their output; the simulator
   applies the single one-bar delay. Before, signals were delayed two bars.
+- Deflated Sharpe ratio follows Bailey and Lopez de Prado (2014): it uses the
+  per-period Sharpe, scales the expected maximum Sharpe by the variance of
+  the trial Sharpes, and returns a probability in [0, 1].
+  `deflated_sharpe_significant` now means DSR > 0.95. Before, an annualized
+  Sharpe was mixed with a daily sample size and the result was a z-score
+  tested against 0.

@@ -253,19 +253,18 @@ class VectorizedBacktester:
         df = pd.DataFrame(rows)
 
         if not df.empty:
-            # Apply Deflated Sharpe correction for multiple comparisons
-            from reporting.analytics import PerformanceAnalytics
-            analytics = PerformanceAnalytics()
-            corrected_sharpes = []
-            for _, row in df.iterrows():
-                raw_sharpe = row.get("sharpe_ratio", 0)
-                dsr = analytics._deflated_sharpe_ratio(
-                    sharpe=raw_sharpe,
-                    n_obs=len(self.prices),
-                    n_strategies=n_configs,
+            from reporting.analytics import TRADING_DAYS_PER_YEAR, deflated_sharpe_ratio
+            per_period = df["sharpe_ratio"].to_numpy(dtype=float) / np.sqrt(TRADING_DAYS_PER_YEAR)
+            trial_variance = float(np.var(per_period, ddof=1)) if len(per_period) > 1 else 0.0
+            df["deflated_sharpe_corrected"] = [
+                deflated_sharpe_ratio(
+                    sharpe=sr,
+                    n_obs=len(self.prices) - 1,
+                    n_trials=n_configs,
+                    trial_sharpe_variance=trial_variance,
                 )
-                corrected_sharpes.append(dsr)
-            df["deflated_sharpe_corrected"] = corrected_sharpes
+                for sr in per_period
+            ]
             df.sort_values("deflated_sharpe_corrected", ascending=False, inplace=True)
 
         logger.info(f"Parameter sweep complete. Best Sharpe: {df['sharpe_ratio'].max():.3f}")

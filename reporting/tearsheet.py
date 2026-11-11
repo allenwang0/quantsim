@@ -160,8 +160,8 @@ def generate_tearsheet(
     def fmt_dollar(v): return f"${v:,.0f}" if v is not None else "N/A"
 
     m = metrics
-    verdict_color = "#00e676" if m.get("deflated_sharpe_ratio", -1) > 0 else "#ff3d6b"
-    verdict_text = "VIABLE" if m.get("deflated_sharpe_ratio", -1) > 0 else "NOT SIGNIFICANT"
+    verdict_color = "#00e676" if m.get("deflated_sharpe_ratio", 0) > 0.95 else "#ff3d6b"
+    verdict_text = "VIABLE" if m.get("deflated_sharpe_ratio", 0) > 0.95 else "NOT SIGNIFICANT"
 
     ci_low = mc_results.get("sharpe_ci_low", 0)
     ci_high = mc_results.get("sharpe_ci_high", 0)
@@ -245,7 +245,7 @@ def generate_tearsheet(
     <div class="mc"><div class="ml">Sharpe Ratio</div>
       <div class="mv {'pos' if (m.get('sharpe_ratio',0) or 0) >= 0.5 else 'neg'}">{fmt_f(m.get('sharpe_ratio'))}</div></div>
     <div class="mc"><div class="ml">Deflated SR</div>
-      <div class="mv {'pos' if (m.get('deflated_sharpe_ratio',0) or 0) >= 0 else 'neg'}">{fmt_f(m.get('deflated_sharpe_ratio'))}</div>
+      <div class="mv {'pos' if (m.get('deflated_sharpe_ratio',0) or 0) > 0.95 else 'neg'}">{fmt_f(m.get('deflated_sharpe_ratio'))}</div>
       <div class="ms">corrected for {n_strategies_tested} configs</div></div>
     <div class="mc"><div class="ml">Sortino Ratio</div>
       <div class="mv">{fmt_f(m.get('sortino_ratio'))}</div></div>
@@ -314,7 +314,7 @@ def generate_tearsheet(
       <tr><td>Avg OOS Sharpe</td><td class="{'pos' if wfo_results.get('avg_oos_sharpe',0) > 0 else 'neg'}">{wfo_results.get('avg_oos_sharpe', 0):.3f}</td></tr>
       <tr><td>Avg IS Sharpe</td><td>{wfo_results.get('avg_is_sharpe', 0):.3f}</td></tr>
       <tr><td>IS→OOS Degradation</td><td class="neg">{wfo_results.get('sharpe_degradation', 0):.3f}</td></tr>
-      <tr><td>Deflated SR (corrected)</td><td class="{'pos' if wfo_results.get('deflated_sharpe_corrected',0) > 0 else 'neg'}">{wfo_results.get('deflated_sharpe_corrected', 0):.3f}</td></tr>
+      <tr><td>Deflated SR (corrected)</td><td class="{'pos' if wfo_results.get('deflated_sharpe_corrected',0) > 0.95 else 'neg'}">{wfo_results.get('deflated_sharpe_corrected', 0):.3f}</td></tr>
       <tr><td>OOS Win Rate</td><td>{wfo_results.get('oos_win_rate', 0):.1%}</td></tr>
       <tr><td>Verdict</td><td style="color:{'#00e676' if wfo_results.get('summary',{}).get('pass') else '#ff3d6b'}">{wfo_results.get("summary", {}).get("message", "N/A")}</td></tr>
     </table>
