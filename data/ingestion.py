@@ -88,7 +88,8 @@ def fetch_equity_history(
             continue
 
         # Handle both single and multi-ticker DataFrames
-        if len(batch) == 1:
+        # Newer yfinance versions already return MultiIndex even for single symbols
+        if len(batch) == 1 and not isinstance(data.columns, pd.MultiIndex):
             data.columns = pd.MultiIndex.from_product([data.columns, batch])
 
         for symbol in batch:
