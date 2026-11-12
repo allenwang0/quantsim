@@ -21,7 +21,9 @@ logger = logging.getLogger("bootstrap")
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Bootstrap QuantSim historical data")
+    parser = argparse.ArgumentParser(
+        prog="quantsim bootstrap", description="Bootstrap QuantSim historical data"
+    )
     parser.add_argument("--symbols", nargs="*", help="Specific symbols (default: full universe)")
     parser.add_argument("--start", default="2010-01-01", help="Start date YYYY-MM-DD")
     parser.add_argument("--end", default=None, help="End date YYYY-MM-DD")

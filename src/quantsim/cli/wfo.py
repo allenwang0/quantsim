@@ -64,7 +64,9 @@ SIGNAL_REGISTRY = {
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="QuantSim Walk-Forward Optimizer")
+    parser = argparse.ArgumentParser(
+        prog="quantsim wfo", description="QuantSim Walk-Forward Optimizer"
+    )
     parser.add_argument(
         "--mode",
         default="wfo",

@@ -11,7 +11,7 @@ Tabs:
   4. Research            — WFO results, ML IC history, GARCH vol forecasts
   5. Risk Monitor        — circuit breaker status, alerts, Greeks limits
 
-Run:  streamlit run dashboard/app.py
+Run:  streamlit run src/quantsim/dashboard/app.py
 """
 
 import json

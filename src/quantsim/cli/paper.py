@@ -3,17 +3,13 @@ Run live paper trading from the command line.
 
 Usage:
   quantsim paper --strategy sma --symbol SPY QQQ
-  quantsim paper --strategy ensemble --symbol SPY QQQ GLD TLT
   quantsim paper --strategy dual_momentum
-
-  # With portfolio optimization overlay
-  quantsim paper --strategy tsmom --optimizer hrp --symbol SPY QQQ GLD TLT IWM
 
   # Multi-strategy ensemble
   quantsim paper --strategy sma ema macd --symbol SPY --ensemble
 
 The dashboard runs as a separate process:
-  streamlit run dashboard/app.py
+  streamlit run src/quantsim/dashboard/app.py
 
 Alpaca credentials must be set:
   export ALPACA_API_KEY=your_key
@@ -34,7 +30,7 @@ logger = logging.getLogger("paper_trading")
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="QuantSim Paper Trading")
+    parser = argparse.ArgumentParser(prog="quantsim paper", description="QuantSim Paper Trading")
     parser.add_argument("--strategy", nargs="+", default=["sma"], help="Strategy name(s)")
     parser.add_argument(
         "--symbol", "--symbols", nargs="+", default=["SPY"], help="Symbol(s) to trade"
@@ -50,12 +46,6 @@ def main(argv=None):
         default="confidence_weighted",
         choices=["majority_vote", "confidence_weighted", "orthogonality_checked"],
         help="Signal aggregation method",
-    )
-    parser.add_argument(
-        "--optimizer",
-        default=None,
-        choices=["hrp", "risk_parity", "mean_variance", "black_litterman"],
-        help="Portfolio optimization overlay (applied at rebalance)",
     )
     parser.add_argument("--db", default=None, help="Database path override")
     args = parser.parse_args(argv)
@@ -121,7 +111,7 @@ def main(argv=None):
     logger.info(f"Alpaca: {'configured' if config.alpaca_configured else 'simulation'}")
     logger.info("=" * 60)
     logger.info("Press Ctrl+C to stop gracefully.")
-    logger.info("Run dashboard in separate terminal: streamlit run dashboard/app.py")
+    logger.info("Run dashboard in separate terminal: streamlit run src/quantsim/dashboard/app.py")
     logger.info("=" * 60)
 
     try:

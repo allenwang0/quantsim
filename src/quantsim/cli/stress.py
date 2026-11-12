@@ -101,7 +101,9 @@ def run_stress_period(
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="QuantSim Stress Test Runner")
+    parser = argparse.ArgumentParser(
+        prog="quantsim stress", description="QuantSim Stress Test Runner"
+    )
     parser.add_argument(
         "--strategy",
         default="sma",

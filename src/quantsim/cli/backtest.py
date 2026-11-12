@@ -48,7 +48,9 @@ logger = logging.getLogger("backtest")
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="QuantSim Backtest Runner v2")
+    parser = argparse.ArgumentParser(
+        prog="quantsim backtest", description="QuantSim Backtest Runner v2"
+    )
     parser.add_argument(
         "--mode",
         default="event",
