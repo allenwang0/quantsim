@@ -111,20 +111,6 @@ class LiveTradingConfig:
 
 
 @dataclass
-class MLConfig:
-    enabled: bool = field(
-        default_factory=lambda: os.environ.get("QUANTSIM_ML", "true").lower() == "true"
-    )
-    train_years: int = 3
-    validation_months: int = 6
-    retrain_months: int = 1
-    min_ic: float = 0.02
-    lgbm_n_estimators: int = 200
-    lgbm_learning_rate: float = 0.05
-    lgbm_max_depth: int = 6
-
-
-@dataclass
 class PortfolioOptConfig:
     default_optimizer: str = "hrp"  # "hrp" | "risk_parity" | "mean_variance" | "black_litterman"
     rebalance_freq: str = "monthly"
@@ -174,7 +160,6 @@ class QuantSimConfig:
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
     live: LiveTradingConfig = field(default_factory=LiveTradingConfig)
-    ml: MLConfig = field(default_factory=MLConfig)
     portfolio_opt: PortfolioOptConfig = field(default_factory=PortfolioOptConfig)
     data: DataConfig = field(default_factory=DataConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
@@ -236,10 +221,6 @@ class QuantSimConfig:
             for k, v in data["live"].items():
                 if hasattr(self.live, k):
                     setattr(self.live, k, v)
-        if "ml" in data:
-            for k, v in data["ml"].items():
-                if hasattr(self.ml, k):
-                    setattr(self.ml, k, v)
         if "portfolio_opt" in data:
             for k, v in data["portfolio_opt"].items():
                 if hasattr(self.portfolio_opt, k):

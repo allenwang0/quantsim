@@ -571,7 +571,6 @@ class TestStrategyRegistryE2E:
         skip = {
             "pairs",
             "dual_momentum",
-            "ml_xsectional",
         }
         df = StrategyRegistry.list_all()
         for _, row in df.iterrows():

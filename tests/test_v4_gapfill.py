@@ -59,10 +59,10 @@ class TestLoggingConfig:
         assert isinstance(logger, logging.Logger)
 
 
-# ── ML Strategy (event-engine compatible) ────────────────────────────────────
+# ── Turbulence filter ─────────────────────────────────────────────────────────
 
 
-class TestMLStrategyEventEngine:
+class TestTurbulenceFilter:
     def make_prices(self, n=400, n_assets=4, seed=42):
         np.random.seed(seed)
         symbols = ["SPY", "QQQ", "GLD", "TLT"]
@@ -72,65 +72,6 @@ class TestMLStrategyEventEngine:
             ret = np.random.normal(0.0003, 0.012, n)
             data[sym] = 100 * np.cumprod(1 + ret)
         return pd.DataFrame(data, index=dates)
-
-    def test_ml_strategy_initializes(self):
-        from quantsim.core.event_queue import EventQueue
-        from quantsim.strategies.ml_strategy import MLCrossSectionalStrategy
-
-        eq = EventQueue()
-        s = MLCrossSectionalStrategy(
-            asset_ids=["SPY", "QQQ", "GLD"],
-            event_queue=eq,
-            train_years=1,
-            retrain_months=3,
-            top_n=1,
-            bottom_n=1,
-        )
-        assert s.strategy_id == "ML_CrossSectional"
-        assert len(s.asset_ids) == 3
-
-    def test_ml_strategy_on_bar_no_crash(self):
-        """ML strategy should not crash during warmup period."""
-        from quantsim.core.event_queue import EventQueue
-        from quantsim.core.events import BarEvent
-        from quantsim.strategies.ml_strategy import MLCrossSectionalStrategy
-
-        eq = EventQueue()
-        assets = ["SPY", "QQQ"]
-        s = MLCrossSectionalStrategy(
-            asset_ids=assets,
-            event_queue=eq,
-            train_years=1,
-            retrain_months=6,
-            top_n=1,
-        )
-
-        # Mock data handler
-        class MockDH:
-            def get_latest_bars(self, aid, n=1, adjusted=True):
-                dates = pd.date_range("2020-01-01", periods=n + 5, freq="B")
-                prices = 100 * np.cumprod(1 + np.random.normal(0.0003, 0.012, n + 5))
-                return pd.DataFrame({"adj_close": prices, "close": prices}, index=dates)
-
-            def get_current_bar(self, aid):
-                return pd.Series({"adj_close": 100.0, "close": 100.0})
-
-            def get_macro_value(self, s):
-                return None
-
-        dh = MockDH()
-        for i in range(10):  # just warmup bars - no signal expected
-            bar = BarEvent(
-                timestamp=datetime(2020, 1, i + 1),
-                asset_id=assets[i % len(assets)],
-                open=100,
-                high=102,
-                low=99,
-                close=101,
-                volume=5_000_000,
-                adj_close=101.0,
-            )
-            s.on_bar(bar, dh)  # should not raise
 
     def test_turbulence_filter_suppresses_on_high_turb(self):
         """TurbulenceFilteredStrategy should emit FLAT during high turbulence."""
@@ -269,18 +210,12 @@ class TestOptimizationOverlayManager:
 
 
 class TestRegistryCompleteness:
-    def test_ml_strategy_in_registry(self):
-        from quantsim.strategies.registry import StrategyRegistry
-
-        df = StrategyRegistry.list_all()
-        assert "ml_xsectional" in df["name"].values
-
     def test_all_strategy_types_covered(self):
         from quantsim.strategies.registry import StrategyRegistry
 
         df = StrategyRegistry.list_all()
         types = set(df["type"].values)
-        required_types = {"trend", "mean_reversion", "momentum", "factor", "ml"}
+        required_types = {"trend", "mean_reversion", "momentum", "factor"}
         for t in required_types:
             assert t in types, f"Strategy type '{t}' missing from registry"
 
@@ -289,7 +224,7 @@ class TestRegistryCompleteness:
 
         df = StrategyRegistry.list_all()
         assert isinstance(df, pd.DataFrame)
-        assert len(df) >= 14
+        assert len(df) >= 13
 
 
 # ── pyproject.toml validity ───────────────────────────────────────────────────

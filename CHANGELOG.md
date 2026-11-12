@@ -52,3 +52,14 @@ Fixes in this section change reported backtest results.
   are scored. Before, each test window started cold (an SMA 50/200 was flat
   for 200 of 252 days). A failing parameter configuration now raises
   instead of being skipped silently.
+
+### Removed
+
+- Options strategies (`covered_call`, `iron_condor`, `long_straddle`) and
+  the reconstructed option chains in `data/options.py`. They never placed
+  option orders, so their results were the underlying's.
+- The LightGBM cross-sectional model (`MLAlphaStrategy`,
+  `MLCrossSectionalStrategy`, `ml_xsectional`, `QUANTSIM_ML`). It called
+  `Series.all(level=0)`, which pandas 2 removed, so training failed. Alpha
+  features and the turbulence filter stay.
+- `quantsim backtest --optimizer`, which built an optimizer and never used it.

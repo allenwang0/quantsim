@@ -268,47 +268,9 @@ def _register_all_strategies():
         )
 
 
-def _register_ml_strategies():
-    """Register ML strategies (optional - only if lightgbm available)."""
-    try:
-        from quantsim.strategies.ml_strategy import MLCrossSectionalStrategy
-
-        class _MLWrapper:
-            def __new__(cls, asset_ids, event_queue, **kwargs):
-                return MLCrossSectionalStrategy(
-                    asset_ids=asset_ids,
-                    event_queue=event_queue,
-                    **{
-                        k: v
-                        for k, v in kwargs.items()
-                        if k
-                        in (
-                            "train_years",
-                            "retrain_months",
-                            "top_n",
-                            "bottom_n",
-                            "min_ic",
-                            "long_only",
-                        )
-                    },
-                )
-
-        StrategyRegistry.register(
-            name="ml_xsectional",
-            strategy_class=_MLWrapper,
-            description="ML cross-sectional alpha (LightGBM, QLib-inspired)",
-            strategy_type="ml",
-            asset_classes=["equity"],
-            default_params={"train_years": 3, "top_n": 3, "long_only": True},
-        )
-    except ImportError:
-        pass  # lightgbm not installed
-
-
 # Auto-register on import
 try:
     _register_all_strategies()
-    _register_ml_strategies()
 except Exception as e:
     logger.warning(f"Strategy auto-registration partial failure: {e}")
 
