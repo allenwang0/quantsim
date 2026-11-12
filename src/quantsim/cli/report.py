@@ -47,10 +47,11 @@ def load_csv(path: Path, symbol: str | None):
     return prices, info
 
 
-def load_db(symbol: str, start: str, end: str):
+def load_db(symbol: str, start: str, end: str, db_path: str | None):
     from quantsim.data.ingestion import get_bars
 
-    bars = get_bars(symbol, datetime.fromisoformat(start), datetime.fromisoformat(end))
+    kwargs = {"db_path": db_path} if db_path else {}
+    bars = get_bars(symbol, datetime.fromisoformat(start), datetime.fromisoformat(end), **kwargs)
     if bars.empty:
         raise SystemExit(f"No bars for {symbol} in the database. Run 'quantsim bootstrap' first.")
     column = "adj_close" if "adj_close" in bars.columns else "close"
@@ -133,12 +134,13 @@ def main(argv=None) -> int:
     parser.add_argument("--benchmark", type=Path, default=Path("benchmarks/results.json"))
     parser.add_argument("--seed", type=int, default=0, help="Seed for the bootstrap intervals")
     parser.add_argument("--card", action="store_true", help="Also write site/card.json")
+    parser.add_argument("--db", default=None, help="Database path override (with --symbol)")
     args = parser.parse_args(argv)
 
     if args.prices:
         prices, info = load_csv(args.prices, args.symbol)
     elif args.symbol:
-        prices, info = load_db(args.symbol, args.start, args.end)
+        prices, info = load_db(args.symbol, args.start, args.end, args.db)
     else:
         parser.error("give --prices CSV or --symbol from the database")
 

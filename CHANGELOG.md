@@ -52,6 +52,27 @@ Fixes in this section change reported backtest results.
   are scored. Before, each test window started cold (an SMA 50/200 was flat
   for 200 of 252 days). A failing parameter configuration now raises
   instead of being skipped silently.
+- Event engine analytics use one equity value per session. Before, they
+  ran on the snapshots written every 21 bars while annualizing as if they
+  were daily: a two-year run reported 0.095 years, inflating CAGR and
+  mis-scaling Sharpe.
+
+### Added
+
+- `quantsim` command with `backtest`, `wfo`, `paper`, `bootstrap`, `stress`
+  and `report` subcommands; code moved to `src/quantsim` with absolute
+  imports.
+- `quantsim report`: results.json plus a one-page HTML report (fill-timing
+  impact, walk-forward equity, bootstrap Sharpe interval with DSR, cost
+  sensitivity, engine benchmark) and `--card` for the portfolio site.
+- `benchmarks/bench_engines.py` and its measured results.
+- `FillModel.SAME_BAR_OPEN_LOOKAHEAD`, which reproduces the old fill bug
+  for the report's comparison only.
+- Seeded synthetic prices (`quantsim.data.synthetic`,
+  `tests/fixtures/make_fixture.py`).
+- `VolatilityTargetingStrategy` now scales each signal by its volatility
+  target; before, it computed the scale and passed signals through
+  unchanged.
 
 ### Removed
 
@@ -62,11 +83,7 @@ Fixes in this section change reported backtest results.
   `MLCrossSectionalStrategy`, `ml_xsectional`, `QUANTSIM_ML`). It called
   `Series.all(level=0)`, which pandas 2 removed, so training failed. Alpha
   features and the turbulence filter stay.
-- `quantsim backtest --optimizer`, which built an optimizer and never used it.
-
-### Fixed (continued)
-
-- Event engine analytics use one equity value per session. Before, they
-  ran on the snapshots written every 21 bars while annualizing as if they
-  were daily: a two-year run reported 0.095 years, inflating CAGR and
-  mis-scaling Sharpe.
+- `--optimizer` on `quantsim backtest` and `quantsim paper`, which built an
+  optimizer and never used it.
+- `requirements.txt`, replaced by `uv.lock`.
+- The ML IC check in the health monitor, which failed on every call.

@@ -123,7 +123,8 @@ def fill_timing_view(prices: pd.Series, strategy: str, params: Dict) -> Dict:
         "takeaway": (
             f"Same-bar fills {'overstated' if gap >= 0 else 'understated'} total return by "
             f"{abs(gap)} pp ({round(lookahead_return, 1)}% vs {round(honest_return, 1)}% "
-            "with next-bar-open fills)."
+            "with next-bar-open fills). Bars are rebuilt from closes, so each open is the "
+            "previous close."
         ),
     }
 
