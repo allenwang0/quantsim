@@ -248,8 +248,8 @@ class TestPackageConfiguration:
         assert data["project"]["name"] == "quantsim"
         assert "version" in data["project"]
 
-    def test_requirements_txt_exists(self):
-        assert os.path.exists("requirements.txt")
+    def test_lock_file_exists(self):
+        assert os.path.exists("uv.lock")
 
 
 # ── Dashboard DB query smoke tests ────────────────────────────────────────────
