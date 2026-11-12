@@ -1,63 +1,10 @@
-"""
-Test suite for QuantSim v3 additions:
-Config system, strategy registry, ensemble engine, GARCH, paper trading engine, WFO CLI.
-"""
+"""Strategy registry, signal aggregation, correlation monitor and ensembles."""
 
-import os
-import tempfile
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import pytest
-
-# ── Config System ──────────────────────────────────────────────────────────────
-
-
-class TestConfig:
-    def test_default_config_loads(self):
-        from quantsim.core.config import QuantSimConfig
-
-        cfg = QuantSimConfig()
-        assert cfg.initial_capital > 0
-        assert cfg.db_path.endswith(".db")
-
-    def test_config_env_override(self):
-
-        os.environ["QUANTSIM_CAPITAL"] = "250000"
-        from quantsim.core.config import QuantSimConfig
-
-        cfg = QuantSimConfig()
-        assert cfg.initial_capital == 250000
-        del os.environ["QUANTSIM_CAPITAL"]
-
-    def test_config_save_load(self):
-
-        from quantsim.core.config import QuantSimConfig
-
-        cfg = QuantSimConfig()
-        cfg.backtest.initial_capital = 75000
-
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
-            path = f.name
-
-        try:
-            cfg.save(path)
-            loaded = QuantSimConfig.load(path)
-            assert loaded.backtest.initial_capital == 75000
-        finally:
-            os.unlink(path)
-
-    def test_config_validation(self):
-        from quantsim.core.config import QuantSimConfig
-
-        cfg = QuantSimConfig()
-        warnings = cfg.validate()
-        # Should warn about missing Alpaca credentials
-        assert isinstance(warnings, list)
-
-
-# ── Strategy Registry ─────────────────────────────────────────────────────────
 
 
 class TestStrategyRegistry:
@@ -102,9 +49,6 @@ class TestStrategyRegistry:
                 assert s is not None, f"Strategy '{name}' returned None"
             except Exception as e:
                 pytest.fail(f"Strategy '{name}' failed to build: {e}")
-
-
-# ── Signal Aggregator ─────────────────────────────────────────────────────────
 
 
 class TestSignalAggregator:
@@ -183,9 +127,6 @@ class TestSignalAggregator:
         assert len(result.contributing_strategies) == 1
 
 
-# ── Strategy Correlation Monitor ─────────────────────────────────────────────
-
-
 class TestCorrelationMonitor:
     def test_detects_highly_correlated_strategies(self):
         from quantsim.strategies.registry import StrategyCorrelationMonitor
@@ -216,123 +157,6 @@ class TestCorrelationMonitor:
 
         # Random walks are uncorrelated
         assert not monitor.are_correlated("strategy_A", "strategy_B")
-
-
-# ── GARCH Volatility Forecaster ───────────────────────────────────────────────
-
-
-class TestGARCH:
-    def make_returns(self, n=300, seed=42):
-        np.random.seed(seed)
-        # Simulate GARCH-like vol clustering
-        returns = []
-        sigma = 0.015
-        for _ in range(n):
-            r = np.random.normal(0, sigma)
-            returns.append(r)
-            sigma = np.sqrt(0.00001 + 0.1 * r**2 + 0.85 * sigma**2)
-        return pd.Series(returns)
-
-    def test_garch_fit_succeeds(self):
-        from quantsim.strategies.garch_vol import GARCHForecaster
-
-        fc = GARCHForecaster()
-        returns = self.make_returns()
-        success = fc.fit(returns)
-        if success:
-            assert fc.is_fitted
-            assert 0 < fc.current_forecast < 2.0
-            params = fc.params
-            # alpha + beta < 1 (stationarity)
-            if "alpha" in params and "beta" in params:
-                assert params["alpha"] + params["beta"] < 1.0
-
-    def test_garch_forecast_positive(self):
-        from quantsim.strategies.garch_vol import GARCHForecaster
-
-        fc = GARCHForecaster()
-        returns = self.make_returns()
-        fc.fit(returns)
-        vol = fc.forecast()
-        assert vol > 0
-        assert vol < 5.0  # sanity upper bound
-
-    def test_garch_adapter_update(self):
-        from quantsim.strategies.garch_vol import GARCHVolatilityAdapter
-
-        adapter = GARCHVolatilityAdapter(fit_window=60, refit_every=10)
-        returns = self.make_returns()
-        for r in returns:
-            adapter.add_bar("SPY", float(r))
-        vol = adapter.get_vol_forecast("SPY")
-        assert 0 < vol < 3.0
-
-    def test_leverage_for_target_vol(self):
-        from quantsim.strategies.garch_vol import GARCHForecaster
-
-        fc = GARCHForecaster(vol_target_annual=0.12)
-        # High vol scenario: leverage should be < 1
-        leverage = fc.leverage_for_target_vol(forecast_vol=0.30)
-        assert leverage < 1.0
-        assert leverage >= 0.25  # capped at minimum
-        # Low vol scenario: leverage should be > 1
-        leverage = fc.leverage_for_target_vol(forecast_vol=0.05)
-        assert leverage > 1.0
-        assert leverage <= 2.0  # capped at maximum
-
-    def test_insufficient_data_fallback(self):
-        from quantsim.strategies.garch_vol import GARCHForecaster
-
-        fc = GARCHForecaster()
-        short_returns = pd.Series(np.random.normal(0, 0.01, 20))
-        success = fc.fit(short_returns)
-        assert not success  # should fail gracefully
-
-
-# ── Database v2 Schema ────────────────────────────────────────────────────────
-
-
-class TestDatabaseV2:
-    def test_migrate_v2_creates_tables(self):
-        import sqlite3
-
-        from quantsim.core.database_v2 import init_full_db
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = os.path.join(tmpdir, "test.db")
-            init_full_db(db_path)
-
-            conn = sqlite3.connect(db_path)
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-            }
-            conn.close()
-
-            required = {
-                "ml_model_runs",
-                "wfo_results",
-                "garch_state",
-                "options_greeks_log",
-                "config_snapshots",
-                "param_sweep_results",
-            }
-            for table in required:
-                assert table in tables, f"Missing table: {table}"
-
-    def test_migration_idempotent(self):
-        """Running migration twice should not fail."""
-        from quantsim.core.database_v2 import init_full_db
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = os.path.join(tmpdir, "test.db")
-            init_full_db(db_path)
-            init_full_db(db_path)  # second call should be safe
-
-
-# ── Ensemble Engine ───────────────────────────────────────────────────────────
 
 
 class TestEnsembleEngine:
@@ -391,5 +215,41 @@ class TestEnsembleEngine:
             pass
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--tb=short"])
+class TestRegistryCompleteness:
+    def test_all_strategy_types_covered(self):
+        from quantsim.strategies.registry import StrategyRegistry
+
+        df = StrategyRegistry.list_all()
+        types = set(df["type"].values)
+        required_types = {"trend", "mean_reversion", "momentum", "factor"}
+        for t in required_types:
+            assert t in types, f"Strategy type '{t}' missing from registry"
+
+    def test_registry_list_is_dataframe(self):
+        from quantsim.strategies.registry import StrategyRegistry
+
+        df = StrategyRegistry.list_all()
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) >= 13
+
+
+class TestPairsInRegistry:
+    def test_pairs_registered(self):
+        from quantsim.strategies.registry import StrategyRegistry
+
+        df = StrategyRegistry.list_all()
+        assert "pairs" in df["name"].values
+
+    def test_pairs_builds_correctly(self):
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.strategies.registry import StrategyRegistry
+
+        eq = EventQueue()
+        strat = StrategyRegistry.build(
+            "pairs",
+            asset_ids=["SPY", "QQQ"],
+            event_queue=eq,
+        )
+        assert strat is not None
+        assert strat.asset_a in ("SPY", "QQQ")
+        assert strat.asset_b in ("SPY", "QQQ")
