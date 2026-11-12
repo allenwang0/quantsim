@@ -165,26 +165,29 @@ class VolatilityTargetingStrategy(Strategy):
         self.min_leverage = min_leverage
 
     def on_bar(self, event: BarEvent, data_handler: DataHandler) -> None:
-        # Delegate to base strategy; size confidence proportional to vol-targeting leverage
+        """Run the base strategy and scale each signal's confidence by the leverage."""
         asset_id = event.asset_id
         self._tick(asset_id)
 
+        leverage = 1.0
         bars = data_handler.get_latest_bars(asset_id, n=self.vol_window + 5)
         if not bars.empty and len(bars) >= self.vol_window:
             closes = bars["adj_close"] if "adj_close" in bars.columns else bars["close"]
             log_rets = np.log(closes / closes.shift(1)).dropna()
             realized_vol = float(log_rets.iloc[-self.vol_window :].std() * np.sqrt(252))
-
             if realized_vol > 0:
-                leverage = np.clip(
-                    self.target_vol / realized_vol,
-                    self.min_leverage,
-                    self.max_leverage,
+                leverage = float(
+                    np.clip(self.target_vol / realized_vol, self.min_leverage, self.max_leverage)
                 )
-                # Adjust base strategy confidence by leverage
-                # (implementation would intercept base strategy signals)
 
+        captured = EventQueue()
+        self.base_strategy._queue = captured
         self.base_strategy.on_bar(event, data_handler)
+        while not captured.empty():
+            signal = captured.get()
+            signal.confidence *= leverage
+            signal.metadata = {**(signal.metadata or {}), "vol_target_leverage": leverage}
+            self._queue.put(signal)
 
 
 class VIXRegimeFilter(Strategy):

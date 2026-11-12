@@ -110,7 +110,7 @@ class SignalEvent:
     strategy_id: str = ""
     asset_id: str = ""
     direction: Direction = Direction.FLAT
-    confidence: float = 1.0  # [0, 1]
+    confidence: float = 1.0  # sizing multiplier: strategies emit [0, 1], overlays may scale it
     signal_type: str = ""  # 'trend', 'mean_reversion', 'momentum', etc.
     holding_period_estimate: int = 1  # expected bars to hold
     metadata: Dict[str, Any] = field(default_factory=dict)
