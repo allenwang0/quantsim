@@ -172,6 +172,18 @@ def generate_tearsheet(
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
     # ── HTML Template ──────────────────────────────────────────────────────────
+    trade_rows_html = "".join(
+        f"""<tr>
+      <td>{r['symbol']}</td>
+      <td>{r['direction']}</td>
+      <td>{r['entry']}</td>
+      <td>{r['exit']}</td>
+      <td class="{'pos' if r['pnl_num'] >= 0 else 'neg'}">{r['pnl']}</td>
+      <td style="color:#5a5a7a">{r['strategy']}</td>
+      <td>{r['bars']}</td>
+    </tr>""" for r in trade_rows[:100]
+    )
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -330,15 +342,7 @@ def generate_tearsheet(
   <div class="sh">Recent Trades ({len(trade_rows)} shown)</div>
   <table>
     <tr><th>Symbol</th><th>Dir</th><th>Entry</th><th>Exit</th><th>P&amp;L</th><th>Strategy</th><th>Bars</th></tr>
-    {"".join(f"""<tr>
-      <td>{r['symbol']}</td>
-      <td>{r['direction']}</td>
-      <td>{r['entry']}</td>
-      <td>{r['exit']}</td>
-      <td class="{'pos' if r['pnl_num'] >= 0 else 'neg'}">{r['pnl']}</td>
-      <td style="color:#5a5a7a">{r['strategy']}</td>
-      <td>{r['bars']}</td>
-    </tr>""" for r in trade_rows[:100])}
+    {trade_rows_html}
   </table>
 </div>
 ''' if trade_rows else ""}
