@@ -19,7 +19,6 @@ All prior tests are unit/component tests. This one finds integration bugs.
 """
 
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import tempfile
@@ -56,7 +55,7 @@ def make_ohlcv(n=600, n_assets=4, seed=42):
 
 def inject_to_db(ohlcv_dict, db_path):
     """Insert synthetic OHLCV into the database."""
-    from core.database import db_conn
+    from quantsim.core.database import db_conn
     for symbol, df in ohlcv_dict.items():
         with db_conn(db_path) as conn:
             for ts, row in df.iterrows():
@@ -83,13 +82,13 @@ class TestVectorizedPipeline:
     def setup(self, tmp_path):
         self.db_path = str(tmp_path / "e2e.db")
         os.environ["QUANTSIM_DB"] = self.db_path
-        from core.database_v2 import init_full_db
+        from quantsim.core.database_v2 import init_full_db
         init_full_db(self.db_path)
         self.ohlcv = make_ohlcv(n=400)
         inject_to_db(self.ohlcv, self.db_path)
 
     def test_vectorized_sma_backtest(self):
-        from backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
+        from quantsim.backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
         prices = pd.DataFrame({
             sym: df["adj_close"] for sym, df in self.ohlcv.items()
         })
@@ -103,7 +102,7 @@ class TestVectorizedPipeline:
         assert result["max_drawdown"] <= 0
 
     def test_parameter_sweep_returns_ranked_results(self):
-        from backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
+        from quantsim.backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
         prices = pd.DataFrame({sym: df["adj_close"] for sym, df in self.ohlcv.items()})
         bt = VectorizedBacktester(prices=prices)
         df = bt.parameter_sweep(sma_crossover_signal, {"fast": [10, 20], "slow": [80, 120]})
@@ -114,7 +113,7 @@ class TestVectorizedPipeline:
         assert all(vals[i] >= vals[i+1] - 1e-9 for i in range(len(vals)-1))
 
     def test_multiple_signal_functions_run_cleanly(self):
-        from backtesting.vectorized import (
+        from quantsim.backtesting.vectorized import (
             VectorizedBacktester, sma_crossover_signal, rsi_signal,
             momentum_signal, bollinger_signal, donchian_signal,
         )
@@ -132,8 +131,8 @@ class TestVectorizedPipeline:
 
 class TestWFOPipeline:
     def test_wfo_full_pipeline(self):
-        from backtesting.walk_forward import WalkForwardOptimizer
-        from backtesting.vectorized import sma_crossover_signal
+        from quantsim.backtesting.walk_forward import WalkForwardOptimizer
+        from quantsim.backtesting.vectorized import sma_crossover_signal
         ohlcv = make_ohlcv(n=700, n_assets=2)
         prices = pd.DataFrame({sym: df["adj_close"] for sym, df in ohlcv.items()})
 
@@ -156,7 +155,7 @@ class TestWFOPipeline:
         assert "pass" in results["summary"]
 
     def test_regime_analysis(self):
-        from backtesting.walk_forward import RegimeAnalyzer
+        from quantsim.backtesting.walk_forward import RegimeAnalyzer
         ohlcv = make_ohlcv(n=500, n_assets=1)
         prices = list(ohlcv.values())[0]["adj_close"]
         equity = prices * 1000
@@ -174,7 +173,7 @@ class TestPortfolioOptPipeline:
         return prices.pct_change().dropna()
 
     def test_hrp_full_pipeline(self):
-        from portfolio.optimization import HierarchicalRiskParity
+        from quantsim.portfolio.optimization import HierarchicalRiskParity
         returns = self.setup_returns()
         hrp = HierarchicalRiskParity()
         weights = hrp.optimize(returns)
@@ -184,21 +183,21 @@ class TestPortfolioOptPipeline:
         assert all(v >= 0 for v in weights.values())
 
     def test_risk_parity_pipeline(self):
-        from portfolio.optimization import RiskParityOptimizer
+        from quantsim.portfolio.optimization import RiskParityOptimizer
         returns = self.setup_returns()
         rp = RiskParityOptimizer()
         weights = rp.optimize(returns)
         assert abs(sum(weights.values()) - 1.0) < 1e-4
 
     def test_mean_variance_pipeline(self):
-        from portfolio.optimization import MeanVarianceOptimizer
+        from quantsim.portfolio.optimization import MeanVarianceOptimizer
         returns = self.setup_returns()
         mv = MeanVarianceOptimizer(cov_method="ledoit_wolf")
         weights = mv.optimize(returns, objective="min_variance")
         assert abs(sum(weights.values()) - 1.0) < 1e-4
 
     def test_black_litterman_with_views(self):
-        from portfolio.optimization import BlackLittermanOptimizer
+        from quantsim.portfolio.optimization import BlackLittermanOptimizer
         returns = self.setup_returns()
         assets = list(returns.columns)
         views = [
@@ -210,7 +209,7 @@ class TestPortfolioOptPipeline:
         assert abs(sum(weights.values()) - 1.0) < 1e-4
 
     def test_portfolio_optimization_strategy(self):
-        from portfolio.optimization import PortfolioOptimizationStrategy
+        from quantsim.portfolio.optimization import PortfolioOptimizationStrategy
         returns = self.setup_returns()
         for optimizer_name in ["hrp", "risk_parity", "equal_weight"]:
             strat = PortfolioOptimizationStrategy(optimizer_name=optimizer_name)
@@ -226,7 +225,7 @@ class TestEventDrivenPipeline:
     def setup(self, tmp_path):
         self.db_path = str(tmp_path / "e2e_event.db")
         os.environ["QUANTSIM_DB"] = self.db_path
-        from core.database_v2 import init_full_db
+        from quantsim.core.database_v2 import init_full_db
         init_full_db(self.db_path)
         self.ohlcv = make_ohlcv(n=400)
         inject_to_db(self.ohlcv, self.db_path)
@@ -236,9 +235,9 @@ class TestEventDrivenPipeline:
         Walking skeleton validation: buy-and-hold on a consistently
         rising synthetic price series must produce positive total return.
         """
-        from strategies.momentum_factor import BuyAndHold
-        from core.event_queue import EventQueue
-        from backtesting.engine import BacktestEngine
+        from quantsim.strategies.momentum_factor import BuyAndHold
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.backtesting.engine import BacktestEngine
 
         eq = EventQueue()
         strategy = BuyAndHold(asset_ids=["SPY"], event_queue=eq)
@@ -259,9 +258,9 @@ class TestEventDrivenPipeline:
 
     def test_sma_strategy_generates_fills(self):
         """SMA crossover should produce at least some trades."""
-        from strategies.trend import SMAcrossover
-        from core.event_queue import EventQueue
-        from backtesting.engine import BacktestEngine
+        from quantsim.strategies.trend import SMAcrossover
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.backtesting.engine import BacktestEngine
 
         eq = EventQueue()
         strategy = SMAcrossover(
@@ -287,10 +286,10 @@ class TestEventDrivenPipeline:
 class TestSignalAggregationE2E:
     def test_ensemble_routes_to_main_queue(self):
         """Ensemble should aggregate strategy signals into the main queue."""
-        from strategies.registry import EnsembleEngine
-        from strategies.trend import SMAcrossover
-        from core.event_queue import EventQueue
-        from core.events import BarEvent, SignalEvent, Direction, EventType
+        from quantsim.strategies.registry import EnsembleEngine
+        from quantsim.strategies.trend import SMAcrossover
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.core.events import BarEvent, SignalEvent, Direction, EventType
 
         main_queue = EventQueue()
         s1 = SMAcrossover(asset_ids=["SPY"], event_queue=main_queue, fast=5, slow=20)
@@ -326,8 +325,8 @@ class TestSignalAggregationE2E:
 class TestGARCHIntegration:
     def test_garch_vol_feeds_into_position_sizing(self):
         """GARCH forecast should produce sensible leverage multiplier."""
-        from strategies.garch_vol import GARCHVolatilityAdapter
-        from portfolio.sizing import VolatilityTargetSizer, compute_realized_vol
+        from quantsim.strategies.garch_vol import GARCHVolatilityAdapter
+        from quantsim.portfolio.sizing import VolatilityTargetSizer, compute_realized_vol
 
         adapter = GARCHVolatilityAdapter(
             fit_window=100, refit_every=21, vol_target=0.12
@@ -355,8 +354,8 @@ class TestGARCHIntegration:
 
 class TestFullReport:
     def test_generate_full_report(self):
-        from reporting.advanced import generate_full_report
-        from reporting.analytics import PerformanceAnalytics
+        from quantsim.reporting.advanced import generate_full_report
+        from quantsim.reporting.analytics import PerformanceAnalytics
 
         np.random.seed(42)
         n = 500
@@ -390,7 +389,7 @@ class TestFullReport:
         assert core["max_drawdown"] <= 0
 
     def test_monte_carlo_confidence_interval_contains_point_estimate(self):
-        from reporting.advanced import AdvancedAnalytics
+        from quantsim.reporting.advanced import AdvancedAnalytics
         np.random.seed(7)
         returns = pd.Series(np.random.normal(0.0004, 0.012, 400))
         result = AdvancedAnalytics.monte_carlo_sharpe(returns, n_simulations=2000)
@@ -404,12 +403,12 @@ class TestFullReport:
 
 class TestDatabasePersistenceE2E:
     def test_portfolio_persists_and_loads(self, tmp_path):
-        from portfolio.portfolio import Portfolio, Position
-        from core.events import AssetType, FillEvent, OrderSide
+        from quantsim.portfolio.portfolio import Portfolio, Position
+        from quantsim.core.events import AssetType, FillEvent, OrderSide
 
         db_path = str(tmp_path / "persist_test.db")
         os.environ["QUANTSIM_DB"] = db_path
-        from core.database_v2 import init_full_db
+        from quantsim.core.database_v2 import init_full_db
         init_full_db(db_path)
 
         portfolio = Portfolio(initial_capital=100_000, cash=100_000,
@@ -430,14 +429,14 @@ class TestDatabasePersistenceE2E:
         portfolio.persist(db_path)
 
         # Load and verify
-        from reporting.analytics import load_equity_curve_from_db
-        from core.database import db_conn
+        from quantsim.reporting.analytics import load_equity_curve_from_db
+        from quantsim.core.database import db_conn
         with db_conn(db_path) as conn:
             rows = conn.execute("SELECT COUNT(*) FROM portfolio_snapshots").fetchone()
             assert rows[0] >= 1
 
     def test_wfo_results_logged_to_db(self, tmp_path):
-        from core.database_v2 import init_full_db, log_wfo_result
+        from quantsim.core.database_v2 import init_full_db, log_wfo_result
         import uuid
 
         db_path = str(tmp_path / "wfo_test.db")
@@ -455,7 +454,7 @@ class TestDatabasePersistenceE2E:
             metrics={"oos_sharpe": 0.65, "oos_return": 0.08, "oos_max_dd": -0.12},
         )
 
-        from core.database import db_conn
+        from quantsim.core.database import db_conn
         with db_conn(db_path) as conn:
             rows = conn.execute("SELECT COUNT(*) FROM wfo_results").fetchone()
             assert rows[0] == 1
@@ -469,14 +468,14 @@ class TestConfigE2E:
         import os
         os.environ["QUANTSIM_CAPITAL"] = "75000"
 
-        from core.config import QuantSimConfig
+        from quantsim.core.config import QuantSimConfig
         cfg = QuantSimConfig()
         assert cfg.initial_capital == 75000
 
         del os.environ["QUANTSIM_CAPITAL"]
 
     def test_config_validation_produces_warnings_not_errors(self):
-        from core.config import QuantSimConfig
+        from quantsim.core.config import QuantSimConfig
         cfg = QuantSimConfig()
         warnings = cfg.validate()
         # Validation should return a list (possibly empty), never raise

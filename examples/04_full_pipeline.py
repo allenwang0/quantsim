@@ -15,23 +15,22 @@ Run:
 """
 
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pandas as pd
 from datetime import datetime
 
-from core.logging_config import setup_logging
-from core.database_v2 import init_full_db
-from core.database import db_conn
-from strategies.trend import SMAcrossover
-from core.event_queue import EventQueue
-from backtesting.engine import BacktestEngine
-from backtesting.order_manager import OrderManager
-from backtesting.execution import VolumeProportionalSlippage, ZeroCommission
-from reporting.analytics import PerformanceAnalytics, load_equity_curve_from_db, load_trades_from_db
-from reporting.tearsheet import generate_tearsheet
-from reporting.monitor import StrategyHealthMonitor
+from quantsim.core.logging_config import setup_logging
+from quantsim.core.database_v2 import init_full_db
+from quantsim.core.database import db_conn
+from quantsim.strategies.trend import SMAcrossover
+from quantsim.core.event_queue import EventQueue
+from quantsim.backtesting.engine import BacktestEngine
+from quantsim.backtesting.order_manager import OrderManager
+from quantsim.backtesting.execution import VolumeProportionalSlippage, ZeroCommission
+from quantsim.reporting.analytics import PerformanceAnalytics, load_equity_curve_from_db, load_trades_from_db
+from quantsim.reporting.tearsheet import generate_tearsheet
+from quantsim.reporting.monitor import StrategyHealthMonitor
 
 setup_logging(level="INFO")
 

@@ -8,13 +8,13 @@ trade. The series starts with a decline so both engines begin flat.
 import numpy as np
 import pandas as pd
 
-from backtesting.engine import BacktestEngine
-from backtesting.execution import FillModel, NoSlippage, ZeroCommission
-from backtesting.vectorized import _simulate_portfolio_numba, sma_crossover_signal
-from core.event_queue import EventQueue
-from core.events import OrderSide
-from portfolio.sizing import FixedFractionalSizer
-from strategies.trend import SMAcrossover
+from quantsim.backtesting.engine import BacktestEngine
+from quantsim.backtesting.execution import FillModel, NoSlippage, ZeroCommission
+from quantsim.backtesting.vectorized import _simulate_portfolio_numba, sma_crossover_signal
+from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import OrderSide
+from quantsim.portfolio.sizing import FixedFractionalSizer
+from quantsim.strategies.trend import SMAcrossover
 from tests.synthetic_bars import trading_days, write_bars
 
 FAST, SLOW, SIZE, CAPITAL = 5, 20, 0.10, 100_000.0

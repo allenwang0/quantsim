@@ -10,7 +10,6 @@ Tests for gap-filling additions:
 """
 
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import numpy as np
@@ -22,14 +21,14 @@ from datetime import datetime
 
 class TestLoggingConfig:
     def test_setup_logging_runs(self):
-        from core.logging_config import setup_logging
+        from quantsim.core.logging_config import setup_logging
         setup_logging(level="WARNING")  # quiet for tests
         import logging
         assert logging.getLogger().level == logging.WARNING
 
     def test_json_formatter_produces_valid_json(self):
         import json, logging
-        from core.logging_config import JSONFormatter
+        from quantsim.core.logging_config import JSONFormatter
         formatter = JSONFormatter()
         record = logging.LogRecord(
             name="test", level=logging.INFO,
@@ -43,7 +42,7 @@ class TestLoggingConfig:
         assert "level" in parsed
 
     def test_get_logger_returns_logger(self):
-        from core.logging_config import get_logger
+        from quantsim.core.logging_config import get_logger
         logger = get_logger("test.module")
         import logging
         assert isinstance(logger, logging.Logger)
@@ -63,8 +62,8 @@ class TestMLStrategyEventEngine:
         return pd.DataFrame(data, index=dates)
 
     def test_ml_strategy_initializes(self):
-        from strategies.ml_strategy import MLCrossSectionalStrategy
-        from core.event_queue import EventQueue
+        from quantsim.strategies.ml_strategy import MLCrossSectionalStrategy
+        from quantsim.core.event_queue import EventQueue
         eq = EventQueue()
         s = MLCrossSectionalStrategy(
             asset_ids=["SPY", "QQQ", "GLD"],
@@ -79,9 +78,9 @@ class TestMLStrategyEventEngine:
 
     def test_ml_strategy_on_bar_no_crash(self):
         """ML strategy should not crash during warmup period."""
-        from strategies.ml_strategy import MLCrossSectionalStrategy
-        from core.event_queue import EventQueue
-        from core.events import BarEvent, AssetType
+        from quantsim.strategies.ml_strategy import MLCrossSectionalStrategy
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.core.events import BarEvent, AssetType
 
         eq = EventQueue()
         assets = ["SPY", "QQQ"]
@@ -112,10 +111,10 @@ class TestMLStrategyEventEngine:
 
     def test_turbulence_filter_suppresses_on_high_turb(self):
         """TurbulenceFilteredStrategy should emit FLAT during high turbulence."""
-        from strategies.ml_strategy import TurbulenceFilteredStrategy
-        from strategies.trend import SMAcrossover
-        from core.event_queue import EventQueue
-        from core.events import BarEvent, EventType, Direction
+        from quantsim.strategies.ml_strategy import TurbulenceFilteredStrategy
+        from quantsim.strategies.trend import SMAcrossover
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.core.events import BarEvent, EventType, Direction
 
         eq = EventQueue()
         base = SMAcrossover(asset_ids=["SPY"], event_queue=eq, fast=5, slow=20)
@@ -152,15 +151,15 @@ class TestMLStrategyEventEngine:
 
 class TestGARCHSizerIntegration:
     def test_garch_sizer_in_sizing_module(self):
-        from portfolio.sizing import GARCHVolatilityTargetSizer
+        from quantsim.portfolio.sizing import GARCHVolatilityTargetSizer
         sizer = GARCHVolatilityTargetSizer(
             target_annual_vol=0.12, max_position_fraction=0.15
         )
         assert sizer is not None
 
     def test_garch_sizer_update_and_size(self):
-        from portfolio.sizing import GARCHVolatilityTargetSizer
-        from portfolio.portfolio import Portfolio
+        from quantsim.portfolio.sizing import GARCHVolatilityTargetSizer
+        from quantsim.portfolio.portfolio import Portfolio
 
         sizer = GARCHVolatilityTargetSizer(target_annual_vol=0.12)
         np.random.seed(42)
@@ -179,11 +178,11 @@ class TestGARCHSizerIntegration:
 
 class TestOptimizationOverlayManager:
     def test_overlay_manager_initializes(self):
-        from portfolio.manager import OptimizationOverlayManager
-        from portfolio.portfolio import Portfolio
-        from portfolio.optimization import HierarchicalRiskParity
-        from risk.risk_manager import RiskManager
-        from core.event_queue import EventQueue
+        from quantsim.portfolio.manager import OptimizationOverlayManager
+        from quantsim.portfolio.portfolio import Portfolio
+        from quantsim.portfolio.optimization import HierarchicalRiskParity
+        from quantsim.risk.risk_manager import RiskManager
+        from quantsim.core.event_queue import EventQueue
 
         eq = EventQueue()
         portfolio = Portfolio(initial_capital=100_000, cash=100_000)
@@ -199,12 +198,12 @@ class TestOptimizationOverlayManager:
         assert mgr._optimizer is optimizer
 
     def test_overlay_manager_rebalances_monthly(self):
-        from portfolio.manager import OptimizationOverlayManager
-        from portfolio.portfolio import Portfolio
-        from portfolio.optimization import HierarchicalRiskParity
-        from risk.risk_manager import RiskManager
-        from core.event_queue import EventQueue
-        from core.events import BarEvent
+        from quantsim.portfolio.manager import OptimizationOverlayManager
+        from quantsim.portfolio.portfolio import Portfolio
+        from quantsim.portfolio.optimization import HierarchicalRiskParity
+        from quantsim.risk.risk_manager import RiskManager
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.core.events import BarEvent
 
         eq = EventQueue()
         portfolio = Portfolio(initial_capital=100_000, cash=100_000)
@@ -233,12 +232,12 @@ class TestOptimizationOverlayManager:
 
 class TestRegistryCompleteness:
     def test_ml_strategy_in_registry(self):
-        from strategies.registry import StrategyRegistry
+        from quantsim.strategies.registry import StrategyRegistry
         df = StrategyRegistry.list_all()
         assert "ml_xsectional" in df["name"].values
 
     def test_all_strategy_types_covered(self):
-        from strategies.registry import StrategyRegistry
+        from quantsim.strategies.registry import StrategyRegistry
         df = StrategyRegistry.list_all()
         types = set(df["type"].values)
         required_types = {"trend", "mean_reversion", "momentum", "factor", "options", "ml"}
@@ -246,7 +245,7 @@ class TestRegistryCompleteness:
             assert t in types, f"Strategy type '{t}' missing from registry"
 
     def test_registry_list_is_dataframe(self):
-        from strategies.registry import StrategyRegistry
+        from quantsim.strategies.registry import StrategyRegistry
         df = StrategyRegistry.list_all()
         assert isinstance(df, pd.DataFrame)
         assert len(df) >= 15  # at least 15 strategies
@@ -286,7 +285,7 @@ class TestDashboardDBQueries:
         import importlib.util, sys
         db_path = str(tmp_path / "dash_test.db")
         os.environ["QUANTSIM_DB"] = db_path
-        from core.database_v2 import init_full_db
+        from quantsim.core.database_v2 import init_full_db
         init_full_db(db_path)
 
         # Simulate the dashboard's query functions directly

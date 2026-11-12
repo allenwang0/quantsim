@@ -20,24 +20,23 @@ Run:
 """
 
 import sys, os, tempfile
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pandas as pd
 from datetime import datetime
 import time
 
-from core.logging_config import setup_logging
-from core.database_v2 import init_full_db
-from core.database import db_conn
-from backtesting.vectorized import VectorizedBacktester, sma_crossover_signal, momentum_signal
-from backtesting.walk_forward import WalkForwardOptimizer, RegimeAnalyzer
-from strategies.trend import SMAcrossover
-from backtesting.engine import BacktestEngine
-from backtesting.execution import VolumeProportionalSlippage, ZeroCommission
-from core.event_queue import EventQueue
-from reporting.tearsheet import generate_tearsheet
-from reporting.analytics import load_equity_curve_from_db
+from quantsim.core.logging_config import setup_logging
+from quantsim.core.database_v2 import init_full_db
+from quantsim.core.database import db_conn
+from quantsim.backtesting.vectorized import VectorizedBacktester, sma_crossover_signal, momentum_signal
+from quantsim.backtesting.walk_forward import WalkForwardOptimizer, RegimeAnalyzer
+from quantsim.strategies.trend import SMAcrossover
+from quantsim.backtesting.engine import BacktestEngine
+from quantsim.backtesting.execution import VolumeProportionalSlippage, ZeroCommission
+from quantsim.core.event_queue import EventQueue
+from quantsim.reporting.tearsheet import generate_tearsheet
+from quantsim.reporting.analytics import load_equity_curve_from_db
 
 setup_logging(level="WARNING")
 
@@ -218,4 +217,4 @@ print(f"  IS Sharpe: {results.get('sharpe_ratio',0):.3f}  "
       f"DSR: {wfo_results['deflated_sharpe_corrected']:.3f}")
 print()
 print("  Next step: paper trade for 30+ days before risking real capital.")
-print("  Command: python scripts/run_paper_trading.py --strategy sma --symbol SPY")
+print("  Command: quantsim paper --strategy sma --symbol SPY")

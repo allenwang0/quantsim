@@ -4,7 +4,6 @@ Config system, strategy registry, ensemble engine, GARCH, paper trading engine, 
 """
 
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import tempfile
@@ -17,7 +16,7 @@ from datetime import datetime
 
 class TestConfig:
     def test_default_config_loads(self):
-        from core.config import QuantSimConfig
+        from quantsim.core.config import QuantSimConfig
         cfg = QuantSimConfig()
         assert cfg.initial_capital > 0
         assert cfg.db_path.endswith(".db")
@@ -25,13 +24,13 @@ class TestConfig:
     def test_config_env_override(self):
         import os
         os.environ["QUANTSIM_CAPITAL"] = "250000"
-        from core.config import QuantSimConfig
+        from quantsim.core.config import QuantSimConfig
         cfg = QuantSimConfig()
         assert cfg.initial_capital == 250000
         del os.environ["QUANTSIM_CAPITAL"]
 
     def test_config_save_load(self):
-        from core.config import QuantSimConfig
+        from quantsim.core.config import QuantSimConfig
         import json, tempfile, os
 
         cfg = QuantSimConfig()
@@ -48,7 +47,7 @@ class TestConfig:
             os.unlink(path)
 
     def test_config_validation(self):
-        from core.config import QuantSimConfig
+        from quantsim.core.config import QuantSimConfig
         cfg = QuantSimConfig()
         warnings = cfg.validate()
         # Should warn about missing Alpaca credentials
@@ -59,30 +58,30 @@ class TestConfig:
 
 class TestStrategyRegistry:
     def test_registry_lists_strategies(self):
-        from strategies.registry import StrategyRegistry
+        from quantsim.strategies.registry import StrategyRegistry
         df = StrategyRegistry.list_all()
         assert len(df) > 0
         assert "name" in df.columns
         assert "type" in df.columns
 
     def test_build_by_name(self):
-        from strategies.registry import StrategyRegistry
-        from core.event_queue import EventQueue
+        from quantsim.strategies.registry import StrategyRegistry
+        from quantsim.core.event_queue import EventQueue
         eq = EventQueue()
         strategy = StrategyRegistry.build("sma", asset_ids=["SPY"], event_queue=eq)
         assert strategy is not None
         assert strategy.strategy_id.startswith("SMA")
 
     def test_build_unknown_raises(self):
-        from strategies.registry import StrategyRegistry
-        from core.event_queue import EventQueue
+        from quantsim.strategies.registry import StrategyRegistry
+        from quantsim.core.event_queue import EventQueue
         eq = EventQueue()
         with pytest.raises(ValueError, match="not found"):
             StrategyRegistry.build("nonexistent_strategy", asset_ids=["SPY"], event_queue=eq)
 
     def test_all_registered_strategies_buildable(self):
-        from strategies.registry import StrategyRegistry
-        from core.event_queue import EventQueue
+        from quantsim.strategies.registry import StrategyRegistry
+        from quantsim.core.event_queue import EventQueue
         df = StrategyRegistry.list_all()
         # Skip options strategies (they need single asset_id, not list)
         skip = {"covered_call", "iron_condor", "long_straddle", "pairs"}
@@ -102,7 +101,7 @@ class TestStrategyRegistry:
 
 class TestSignalAggregator:
     def make_signal(self, strategy_id, direction, confidence=0.8, signal_type="trend"):
-        from core.events import SignalEvent, Direction
+        from quantsim.core.events import SignalEvent, Direction
         return SignalEvent(
             timestamp=datetime(2022, 1, 3),
             strategy_id=strategy_id,
@@ -113,8 +112,8 @@ class TestSignalAggregator:
         )
 
     def test_majority_vote_long(self):
-        from strategies.registry import SignalAggregator
-        from core.events import Direction
+        from quantsim.strategies.registry import SignalAggregator
+        from quantsim.core.events import Direction
         agg = SignalAggregator(method="majority_vote")
         agg.add_signal(self.make_signal("s1", Direction.LONG))
         agg.add_signal(self.make_signal("s2", Direction.LONG))
@@ -124,8 +123,8 @@ class TestSignalAggregator:
         assert result.direction == Direction.LONG
 
     def test_majority_vote_flat_on_tie(self):
-        from strategies.registry import SignalAggregator
-        from core.events import Direction
+        from quantsim.strategies.registry import SignalAggregator
+        from quantsim.core.events import Direction
         agg = SignalAggregator(method="majority_vote")
         agg.add_signal(self.make_signal("s1", Direction.LONG))
         agg.add_signal(self.make_signal("s2", Direction.SHORT))
@@ -134,8 +133,8 @@ class TestSignalAggregator:
         assert result is not None
 
     def test_confidence_weighted(self):
-        from strategies.registry import SignalAggregator
-        from core.events import Direction
+        from quantsim.strategies.registry import SignalAggregator
+        from quantsim.core.events import Direction
         agg = SignalAggregator(method="confidence_weighted", direction_threshold=0.25)
         agg.add_signal(self.make_signal("s1", Direction.LONG, confidence=0.9))
         agg.add_signal(self.make_signal("s2", Direction.LONG, confidence=0.7))
@@ -147,8 +146,8 @@ class TestSignalAggregator:
         assert result.net_score > 0
 
     def test_orthogonality_collapses_same_type(self):
-        from strategies.registry import SignalAggregator
-        from core.events import Direction
+        from quantsim.strategies.registry import SignalAggregator
+        from quantsim.core.events import Direction
         agg = SignalAggregator(method="orthogonality_checked")
         # Three LONG trend signals should collapse to one vote
         for i in range(3):
@@ -160,8 +159,8 @@ class TestSignalAggregator:
         assert result.aggregation_method == "orthogonality_checked"
 
     def test_same_strategy_replaces_signal(self):
-        from strategies.registry import SignalAggregator
-        from core.events import Direction
+        from quantsim.strategies.registry import SignalAggregator
+        from quantsim.core.events import Direction
         agg = SignalAggregator(method="majority_vote")
         agg.add_signal(self.make_signal("s1", Direction.LONG))
         agg.add_signal(self.make_signal("s1", Direction.SHORT))  # replaces previous
@@ -174,7 +173,7 @@ class TestSignalAggregator:
 
 class TestCorrelationMonitor:
     def test_detects_highly_correlated_strategies(self):
-        from strategies.registry import StrategyCorrelationMonitor
+        from quantsim.strategies.registry import StrategyCorrelationMonitor
         monitor = StrategyCorrelationMonitor(correlation_threshold=0.70, window=30)
 
         # Two strategies with identical equity curves = correlation 1.0
@@ -193,7 +192,7 @@ class TestCorrelationMonitor:
         )
 
     def test_uncorrelated_strategies_not_flagged(self):
-        from strategies.registry import StrategyCorrelationMonitor
+        from quantsim.strategies.registry import StrategyCorrelationMonitor
         monitor = StrategyCorrelationMonitor(correlation_threshold=0.70, window=30)
 
         np.random.seed(1)
@@ -220,7 +219,7 @@ class TestGARCH:
         return pd.Series(returns)
 
     def test_garch_fit_succeeds(self):
-        from strategies.garch_vol import GARCHForecaster
+        from quantsim.strategies.garch_vol import GARCHForecaster
         fc = GARCHForecaster()
         returns = self.make_returns()
         success = fc.fit(returns)
@@ -233,7 +232,7 @@ class TestGARCH:
                 assert params["alpha"] + params["beta"] < 1.0
 
     def test_garch_forecast_positive(self):
-        from strategies.garch_vol import GARCHForecaster
+        from quantsim.strategies.garch_vol import GARCHForecaster
         fc = GARCHForecaster()
         returns = self.make_returns()
         fc.fit(returns)
@@ -242,7 +241,7 @@ class TestGARCH:
         assert vol < 5.0  # sanity upper bound
 
     def test_garch_adapter_update(self):
-        from strategies.garch_vol import GARCHVolatilityAdapter
+        from quantsim.strategies.garch_vol import GARCHVolatilityAdapter
         adapter = GARCHVolatilityAdapter(fit_window=60, refit_every=10)
         returns = self.make_returns()
         for r in returns:
@@ -251,7 +250,7 @@ class TestGARCH:
         assert 0 < vol < 3.0
 
     def test_leverage_for_target_vol(self):
-        from strategies.garch_vol import GARCHForecaster
+        from quantsim.strategies.garch_vol import GARCHForecaster
         fc = GARCHForecaster(vol_target_annual=0.12)
         # High vol scenario: leverage should be < 1
         leverage = fc.leverage_for_target_vol(forecast_vol=0.30)
@@ -263,7 +262,7 @@ class TestGARCH:
         assert leverage <= 2.0  # capped at maximum
 
     def test_insufficient_data_fallback(self):
-        from strategies.garch_vol import GARCHForecaster
+        from quantsim.strategies.garch_vol import GARCHForecaster
         fc = GARCHForecaster()
         short_returns = pd.Series(np.random.normal(0, 0.01, 20))
         success = fc.fit(short_returns)
@@ -275,7 +274,7 @@ class TestGARCH:
 class TestDatabaseV2:
     def test_migrate_v2_creates_tables(self):
         import tempfile, os, sqlite3
-        from core.database_v2 import init_full_db
+        from quantsim.core.database_v2 import init_full_db
 
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test.db")
@@ -297,7 +296,7 @@ class TestDatabaseV2:
     def test_migration_idempotent(self):
         """Running migration twice should not fail."""
         import tempfile, os
-        from core.database_v2 import init_full_db
+        from quantsim.core.database_v2 import init_full_db
 
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test.db")
@@ -309,11 +308,11 @@ class TestDatabaseV2:
 
 class TestEnsembleEngine:
     def test_ensemble_aggregates_and_emits(self):
-        from strategies.registry import EnsembleEngine, StrategyRegistry
-        from strategies.trend import SMAcrossover
-        from strategies.momentum_factor import BuyAndHold
-        from core.event_queue import EventQueue
-        from core.events import EventType, BarEvent, AssetType
+        from quantsim.strategies.registry import EnsembleEngine, StrategyRegistry
+        from quantsim.strategies.trend import SMAcrossover
+        from quantsim.strategies.momentum_factor import BuyAndHold
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.core.events import EventType, BarEvent, AssetType
 
         main_queue = EventQueue()
 
@@ -327,7 +326,7 @@ class TestEnsembleEngine:
         )
 
         # Feed enough bars for warmup
-        from data.data_handler import DataHandler
+        from quantsim.data.data_handler import DataHandler
         class MockDataHandler:
             def get_latest_bars(self, asset_id, n=1, adjusted=True):
                 np.random.seed(42)

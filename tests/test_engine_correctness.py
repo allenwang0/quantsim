@@ -27,7 +27,6 @@ These tests must pass on every future run. If any fails, a regression occurred.
 """
 
 import sys, os, tempfile
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import numpy as np
@@ -37,11 +36,11 @@ from datetime import datetime
 
 def build_test_engine(db_path, n_bars=400, warmup=30, seed=42):
     """Build a BacktestEngine with synthetic SPY data. Short warmup to get many fills."""
-    from core.database_v2 import init_full_db
-    from core.database import db_conn
-    from strategies.momentum_factor import BuyAndHold
-    from core.event_queue import EventQueue
-    from backtesting.engine import BacktestEngine
+    from quantsim.core.database_v2 import init_full_db
+    from quantsim.core.database import db_conn
+    from quantsim.strategies.momentum_factor import BuyAndHold
+    from quantsim.core.event_queue import EventQueue
+    from quantsim.backtesting.engine import BacktestEngine
 
     init_full_db(db_path)
 
@@ -172,11 +171,11 @@ class TestBug2TimestampPropagation:
         db_path = str(tmp_path / "ts4.db")
         os.environ["QUANTSIM_DB"] = db_path
         # Use strong positive drift to ensure positive return
-        from core.database_v2 import init_full_db
-        from core.database import db_conn
-        from strategies.momentum_factor import BuyAndHold
-        from core.event_queue import EventQueue
-        from backtesting.engine import BacktestEngine
+        from quantsim.core.database_v2 import init_full_db
+        from quantsim.core.database import db_conn
+        from quantsim.strategies.momentum_factor import BuyAndHold
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.backtesting.engine import BacktestEngine
 
         init_full_db(db_path)
         np.random.seed(1)
@@ -209,9 +208,9 @@ class TestBug3StaleDBEquityCurve:
 
     def test_constant_equity_curve_triggers_fallback(self, tmp_path):
         """If DB has a constant equity curve, fallback to portfolio history."""
-        from core.database_v2 import init_full_db
-        from core.database import db_conn
-        from reporting.analytics import load_equity_curve_from_db
+        from quantsim.core.database_v2 import init_full_db
+        from quantsim.core.database import db_conn
+        from quantsim.reporting.analytics import load_equity_curve_from_db
 
         db_path = str(tmp_path / "stale.db")
         init_full_db(db_path)
@@ -229,11 +228,11 @@ class TestBug3StaleDBEquityCurve:
 
     def test_engine_uses_portfolio_history_over_stale_db(self, tmp_path):
         """Engine must return meaningful results even with a stale DB."""
-        from core.database_v2 import init_full_db
-        from core.database import db_conn
-        from strategies.momentum_factor import BuyAndHold
-        from core.event_queue import EventQueue
-        from backtesting.engine import BacktestEngine
+        from quantsim.core.database_v2 import init_full_db
+        from quantsim.core.database import db_conn
+        from quantsim.strategies.momentum_factor import BuyAndHold
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.backtesting.engine import BacktestEngine
 
         db_path = str(tmp_path / "stale2.db")
         os.environ["QUANTSIM_DB"] = db_path
@@ -276,11 +275,11 @@ class TestIntegrationCorrectness:
 
     def test_sma_crossover_produces_multiple_trades(self, tmp_path):
         """SMA crossover should generate multiple signals on a trending series."""
-        from core.database_v2 import init_full_db
-        from core.database import db_conn
-        from strategies.trend import SMAcrossover
-        from core.event_queue import EventQueue
-        from backtesting.engine import BacktestEngine
+        from quantsim.core.database_v2 import init_full_db
+        from quantsim.core.database import db_conn
+        from quantsim.strategies.trend import SMAcrossover
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.backtesting.engine import BacktestEngine
 
         db_path = str(tmp_path / "sma.db")
         os.environ["QUANTSIM_DB"] = db_path

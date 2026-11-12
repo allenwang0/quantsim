@@ -10,7 +10,7 @@ Returns are seeded synthetic draws.
 import numpy as np
 import pandas as pd
 
-from reporting.advanced import AdvancedAnalytics
+from quantsim.reporting.advanced import AdvancedAnalytics
 
 
 def one_year_of_returns(annual_sharpe=0.8, daily_vol=0.01, seed=21):

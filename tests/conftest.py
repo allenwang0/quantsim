@@ -14,7 +14,7 @@ def tmp_db(tmp_path):
     import os
     db_path = str(tmp_path / "test.db")
     os.environ["QUANTSIM_DB"] = db_path
-    from core.database_v2 import init_full_db
+    from quantsim.core.database_v2 import init_full_db
     init_full_db(db_path)
     yield db_path
     os.unlink(db_path)
@@ -47,10 +47,10 @@ def synthetic_db(tmp_path, synthetic_prices):
     import os
     db_path = str(tmp_path / "synth.db")
     os.environ["QUANTSIM_DB"] = db_path
-    from core.database_v2 import init_full_db
+    from quantsim.core.database_v2 import init_full_db
     init_full_db(db_path)
 
-    from core.database import db_conn
+    from quantsim.core.database import db_conn
     for sym in synthetic_prices.columns:
         for ts, price in synthetic_prices[sym].items():
             ts_epoch = int(ts.timestamp())
@@ -78,9 +78,9 @@ def backtest_engine(synthetic_db):
     Use as a reusable test fixture for engine-level tests.
     """
     db_path, prices = synthetic_db
-    from core.event_queue import EventQueue
-    from strategies.momentum_factor import BuyAndHold
-    from backtesting.engine import BacktestEngine
+    from quantsim.core.event_queue import EventQueue
+    from quantsim.strategies.momentum_factor import BuyAndHold
+    from quantsim.backtesting.engine import BacktestEngine
     import pandas as pd
 
     symbols = list(prices.columns)

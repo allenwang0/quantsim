@@ -9,7 +9,6 @@ Tests for this session's gap fixes:
 """
 
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import tempfile
@@ -22,7 +21,7 @@ from datetime import datetime, timedelta, date
 
 class TestOrderManager:
     def make_bar(self, asset_id, price, high=None, low=None, dt=None):
-        from core.events import BarEvent
+        from quantsim.core.events import BarEvent
         return BarEvent(
             timestamp=dt or datetime(2022, 1, 3),
             asset_id=asset_id,
@@ -35,9 +34,9 @@ class TestOrderManager:
         )
 
     def test_stop_loss_triggers_below_price(self):
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
-        from core.events import EventType
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.core.events import EventType
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
@@ -53,12 +52,12 @@ class TestOrderManager:
         assert not eq.empty()
         event = eq.get()
         assert event.event_type == EventType.SIGNAL
-        from core.events import Direction
+        from quantsim.core.events import Direction
         assert event.direction == Direction.FLAT
 
     def test_stop_loss_does_not_trigger_above_price(self):
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
@@ -72,9 +71,9 @@ class TestOrderManager:
         assert eq.empty()
 
     def test_take_profit_triggers_above_target(self):
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
-        from core.events import EventType
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.core.events import EventType
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
@@ -87,8 +86,8 @@ class TestOrderManager:
         assert "SPY" in triggered
 
     def test_trailing_stop_moves_with_price(self):
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
@@ -104,8 +103,8 @@ class TestOrderManager:
         assert stop.stop_price > 400 * 0.97  # stop moved up
 
     def test_bracket_order_stop_triggers_cancels_target(self):
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
@@ -120,8 +119,8 @@ class TestOrderManager:
         assert "SPY" not in mgr._stops
 
     def test_atr_stop_computed_from_atr(self):
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
@@ -134,8 +133,8 @@ class TestOrderManager:
         assert abs(stop.stop_price - 390.0) < 0.01
 
     def test_remove_clears_stop(self):
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
@@ -144,8 +143,8 @@ class TestOrderManager:
         assert "SPY" not in mgr._stops
 
     def test_short_position_stop_triggers_above(self):
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
@@ -162,8 +161,8 @@ class TestOrderManager:
 
 class TestPortfolioOptionsMethods:
     def test_update_greeks_on_position(self):
-        from portfolio.portfolio import Portfolio, Position
-        from core.events import AssetType, FillEvent, OrderSide
+        from quantsim.portfolio.portfolio import Portfolio, Position
+        from quantsim.core.events import AssetType, FillEvent, OrderSide
 
         p = Portfolio(initial_capital=100_000, cash=100_000)
 
@@ -197,8 +196,8 @@ class TestPortfolioOptionsMethods:
         assert abs(pos.theta - (-0.08)) < 1e-6
 
     def test_expire_options_removes_position(self):
-        from portfolio.portfolio import Portfolio
-        from core.events import AssetType, FillEvent, OrderSide
+        from quantsim.portfolio.portfolio import Portfolio
+        from quantsim.core.events import AssetType, FillEvent, OrderSide
 
         p = Portfolio(initial_capital=100_000, cash=100_000)
 
@@ -226,8 +225,8 @@ class TestPortfolioOptionsMethods:
         assert "SPY220110C00430000" not in p.positions
 
     def test_expire_options_books_pnl(self):
-        from portfolio.portfolio import Portfolio
-        from core.events import AssetType, FillEvent, OrderSide
+        from quantsim.portfolio.portfolio import Portfolio
+        from quantsim.core.events import AssetType, FillEvent, OrderSide
 
         p = Portfolio(initial_capital=100_000, cash=100_000)
         # Buy an option at 5.0
@@ -263,12 +262,12 @@ class TestPortfolioOptionsMethods:
 
 class TestStrategyHealthMonitor:
     def test_monitor_detects_drawdown_warning(self, tmp_path):
-        from reporting.monitor import StrategyHealthMonitor
-        from portfolio.portfolio import Portfolio
-        from core.events import AssetType, FillEvent, OrderSide
+        from quantsim.reporting.monitor import StrategyHealthMonitor
+        from quantsim.portfolio.portfolio import Portfolio
+        from quantsim.core.events import AssetType, FillEvent, OrderSide
 
         db_path = str(tmp_path / "monitor_test.db")
-        from core.database_v2 import init_full_db
+        from quantsim.core.database_v2 import init_full_db
         init_full_db(db_path)
 
         monitor = StrategyHealthMonitor(
@@ -292,11 +291,11 @@ class TestStrategyHealthMonitor:
         assert any(a["severity"] in ("WARNING", "CRITICAL") for a in alerts)
 
     def test_monitor_no_false_alerts_on_healthy_portfolio(self, tmp_path):
-        from reporting.monitor import StrategyHealthMonitor
-        from portfolio.portfolio import Portfolio
+        from quantsim.reporting.monitor import StrategyHealthMonitor
+        from quantsim.portfolio.portfolio import Portfolio
 
         db_path = str(tmp_path / "monitor_healthy.db")
-        from core.database_v2 import init_full_db
+        from quantsim.core.database_v2 import init_full_db
         init_full_db(db_path)
 
         monitor = StrategyHealthMonitor(db_path=db_path)
@@ -310,11 +309,11 @@ class TestStrategyHealthMonitor:
         assert len(dd_alerts) == 0
 
     def test_monitor_alert_deduplication(self, tmp_path):
-        from reporting.monitor import StrategyHealthMonitor
-        from portfolio.portfolio import Portfolio
+        from quantsim.reporting.monitor import StrategyHealthMonitor
+        from quantsim.portfolio.portfolio import Portfolio
 
         db_path = str(tmp_path / "monitor_dedup.db")
-        from core.database_v2 import init_full_db
+        from quantsim.core.database_v2 import init_full_db
         init_full_db(db_path)
 
         monitor = StrategyHealthMonitor(db_path=db_path, max_dd_warn=-0.05)
@@ -342,7 +341,7 @@ class TestTearsheet:
         return equity
 
     def test_tearsheet_generates_html(self):
-        from reporting.tearsheet import generate_tearsheet
+        from quantsim.reporting.tearsheet import generate_tearsheet
         equity = self.make_equity()
         html = generate_tearsheet(equity, strategy_name="Test SMA")
         assert isinstance(html, str)
@@ -352,7 +351,7 @@ class TestTearsheet:
         assert "Plotly" in html
 
     def test_tearsheet_includes_metrics(self):
-        from reporting.tearsheet import generate_tearsheet
+        from quantsim.reporting.tearsheet import generate_tearsheet
         equity = self.make_equity()
         html = generate_tearsheet(equity, strategy_name="Test Strategy")
         # Key metric labels should appear
@@ -360,7 +359,7 @@ class TestTearsheet:
             assert label in html, f"Missing metric: {label}"
 
     def test_tearsheet_writes_file(self, tmp_path):
-        from reporting.tearsheet import generate_tearsheet
+        from quantsim.reporting.tearsheet import generate_tearsheet
         equity = self.make_equity()
         output = str(tmp_path / "test_tearsheet.html")
         generate_tearsheet(equity, strategy_name="Test", output_path=output)
@@ -368,7 +367,7 @@ class TestTearsheet:
         assert os.path.getsize(output) > 5000
 
     def test_tearsheet_with_trades_and_benchmark(self):
-        from reporting.tearsheet import generate_tearsheet
+        from quantsim.reporting.tearsheet import generate_tearsheet
         equity = self.make_equity()
         benchmark = self.make_equity(seed=99)
 
@@ -394,13 +393,13 @@ class TestTearsheet:
 
 class TestPairsInRegistry:
     def test_pairs_registered(self):
-        from strategies.registry import StrategyRegistry
+        from quantsim.strategies.registry import StrategyRegistry
         df = StrategyRegistry.list_all()
         assert "pairs" in df["name"].values
 
     def test_pairs_builds_correctly(self):
-        from strategies.registry import StrategyRegistry
-        from core.event_queue import EventQueue
+        from quantsim.strategies.registry import StrategyRegistry
+        from quantsim.core.event_queue import EventQueue
         eq = EventQueue()
         strat = StrategyRegistry.build(
             "pairs",
@@ -416,7 +415,7 @@ class TestPairsInRegistry:
 
 class TestDatabaseConcurrency:
     def test_wal_mode_enabled(self, tmp_path):
-        from core.database import get_connection, init_db
+        from quantsim.core.database import get_connection, init_db
         db_path = str(tmp_path / "wal_test.db")
         init_db(db_path)
         conn = get_connection(db_path)
@@ -427,7 +426,7 @@ class TestDatabaseConcurrency:
     def test_concurrent_reads_while_writing(self, tmp_path):
         """WAL mode allows reads while a write transaction is in progress."""
         import threading
-        from core.database import get_connection, init_db
+        from quantsim.core.database import get_connection, init_db
         db_path = str(tmp_path / "concurrent_test.db")
         init_db(db_path)
 

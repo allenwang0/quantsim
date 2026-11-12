@@ -11,7 +11,6 @@ Run with: pytest tests/test_engine.py -v
 
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import tempfile
@@ -21,13 +20,13 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pandas as pd
 
-from core.events import (
+from quantsim.core.events import (
     BarEvent, SignalEvent, OrderEvent, FillEvent,
     Direction, OrderType, OrderSide, AssetType, EventType
 )
-from core.event_queue import EventQueue
-from portfolio.portfolio import Portfolio, Position
-from reporting.analytics import PerformanceAnalytics
+from quantsim.core.event_queue import EventQueue
+from quantsim.portfolio.portfolio import Portfolio, Position
+from quantsim.reporting.analytics import PerformanceAnalytics
 
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -154,7 +153,7 @@ class TestPortfolio:
 
 class TestRawBar:
     def test_valid_bar(self):
-        from core.schemas import RawBar
+        from quantsim.core.schemas import RawBar
         bar = RawBar(
             asset_id="AAPL",
             timestamp=datetime(2020, 1, 2),
@@ -164,7 +163,7 @@ class TestRawBar:
         assert bar.validate()
 
     def test_invalid_high_low(self):
-        from core.schemas import RawBar
+        from quantsim.core.schemas import RawBar
         bar = RawBar(
             asset_id="AAPL",
             timestamp=datetime(2020, 1, 2),
@@ -174,7 +173,7 @@ class TestRawBar:
         assert not bar.validate()
 
     def test_negative_price(self):
-        from core.schemas import RawBar
+        from quantsim.core.schemas import RawBar
         bar = RawBar(
             asset_id="AAPL",
             timestamp=datetime(2020, 1, 2),
@@ -236,13 +235,13 @@ class TestPerformanceAnalytics:
 
 class TestSlippageModels:
     def test_no_slippage_zero(self):
-        from backtesting.execution import NoSlippage, AssetType
+        from quantsim.backtesting.execution import NoSlippage, AssetType
         model = NoSlippage()
         slip = model.compute_slippage(100.0, 1000, 5_000_000, 5_000_000, AssetType.EQUITY)
         assert slip == 0.0
 
     def test_volume_proportional_large_order(self):
-        from backtesting.execution import VolumeProportionalSlippage, AssetType
+        from quantsim.backtesting.execution import VolumeProportionalSlippage, AssetType
         model = VolumeProportionalSlippage(k=0.1)
         # Order is 10% of ADV: slippage = 100 * 0.1 * sqrt(0.1) ≈ 3.16
         slip = model.compute_slippage(100.0, 100_000, 1_000_000, 1_000_000, AssetType.EQUITY)
@@ -250,7 +249,7 @@ class TestSlippageModels:
         assert slip < 100.0  # sanity: slippage < full price
 
     def test_small_order_small_slippage(self):
-        from backtesting.execution import VolumeProportionalSlippage, AssetType
+        from quantsim.backtesting.execution import VolumeProportionalSlippage, AssetType
         model = VolumeProportionalSlippage(k=0.1)
         # Order is 0.01% of ADV: minimal slippage
         slip_small = model.compute_slippage(100.0, 100, 1_000_000, 1_000_000, AssetType.EQUITY)
@@ -278,7 +277,7 @@ class TestIntegrationEventLoop:
 
     def test_buy_and_hold_positive_pnl_in_uptrend(self):
         """In a linear uptrend, buy-and-hold should show positive P&L."""
-        from core.database import init_db
+        from quantsim.core.database import init_db
         import tempfile, os
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -287,7 +286,7 @@ class TestIntegrationEventLoop:
             init_db(db_path)
 
             # Insert synthetic SPY data
-            from core.database import db_conn
+            from quantsim.core.database import db_conn
             from datetime import datetime as dt
             import pandas as pd
 
@@ -311,13 +310,13 @@ class TestIntegrationEventLoop:
                     )
 
             # Run engine with BuyAndHold
-            from strategies.momentum_factor import BuyAndHold
-            from core.event_queue import EventQueue
+            from quantsim.strategies.momentum_factor import BuyAndHold
+            from quantsim.core.event_queue import EventQueue
 
             eq = EventQueue()
             strategy = BuyAndHold(asset_ids=["SPY"], event_queue=eq)
 
-            from backtesting.engine import BacktestEngine
+            from quantsim.backtesting.engine import BacktestEngine
             engine = BacktestEngine(
                 strategies=[strategy],
                 start=datetime(2022, 1, 3),

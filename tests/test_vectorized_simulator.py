@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backtesting.vectorized import (
+from quantsim.backtesting.vectorized import (
     _simulate_portfolio_numba,
     bollinger_signal,
     donchian_signal,

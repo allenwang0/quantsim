@@ -10,12 +10,12 @@ from datetime import datetime
 import numpy as np
 import pytest
 
-from backtesting.engine import BacktestEngine
-from backtesting.execution import FillModel, NoSlippage, ZeroCommission
-from core.event_queue import EventQueue
-from core.events import Direction
-from strategies.momentum_factor import BuyAndHold
-from strategies.trend import Strategy
+from quantsim.backtesting.engine import BacktestEngine
+from quantsim.backtesting.execution import FillModel, NoSlippage, ZeroCommission
+from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import Direction
+from quantsim.strategies.momentum_factor import BuyAndHold
+from quantsim.strategies.trend import Strategy
 from tests.synthetic_bars import trading_days, write_bars
 
 

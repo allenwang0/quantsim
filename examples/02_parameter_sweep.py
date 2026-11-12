@@ -14,15 +14,14 @@ Run:
 """
 
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pandas as pd
 from datetime import datetime
 import time
 
-from core.logging_config import setup_logging
-from backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
+from quantsim.core.logging_config import setup_logging
+from quantsim.backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
 
 setup_logging(level="WARNING")  # quiet for this example
 

@@ -13,9 +13,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from core.event_queue import EventQueue
-from core.events import BarEvent
-from strategies.mean_reversion import PairsTradingStrategy
+from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent
+from quantsim.strategies.mean_reversion import PairsTradingStrategy
 
 
 class LatestCloseHandler:

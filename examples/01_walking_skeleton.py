@@ -18,18 +18,17 @@ Run:
 """
 
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pandas as pd
 from datetime import datetime
 
-from core.logging_config import setup_logging
-from core.database_v2 import init_full_db
-from core.database import db_conn
-from strategies.momentum_factor import BuyAndHold
-from core.event_queue import EventQueue
-from backtesting.engine import BacktestEngine
+from quantsim.core.logging_config import setup_logging
+from quantsim.core.database_v2 import init_full_db
+from quantsim.core.database import db_conn
+from quantsim.strategies.momentum_factor import BuyAndHold
+from quantsim.core.event_queue import EventQueue
+from quantsim.backtesting.engine import BacktestEngine
 
 setup_logging(level="INFO")
 

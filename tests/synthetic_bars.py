@@ -1,7 +1,7 @@
 """Write synthetic OHLC bars into a QuantSim SQLite database for engine tests."""
-from core.database import db_conn
-from core.database_v2 import init_full_db
-from data.ingestion import get_trading_calendar
+from quantsim.core.database import db_conn
+from quantsim.core.database_v2 import init_full_db
+from quantsim.data.ingestion import get_trading_calendar
 
 
 def write_bars(db_path, asset_id, dates, opens, closes):

@@ -11,7 +11,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from reporting.analytics import PerformanceAnalytics, deflated_sharpe_ratio
+from quantsim.reporting.analytics import PerformanceAnalytics, deflated_sharpe_ratio
 
 
 def test_deflated_sharpe_hand_computed_case():

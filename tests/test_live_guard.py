@@ -10,9 +10,7 @@ import importlib
 
 import pytest
 
-import paper_trading.alpaca_handler as handler
-
-
+import quantsim.paper_trading.alpaca_handler as handler
 class RecordingTradingClient:
     calls = []
 

@@ -16,7 +16,6 @@ Tests are designed to be fast (<1s each) and deterministic.
 """
 
 import sys, os, tempfile
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import numpy as np
@@ -44,8 +43,8 @@ def multi_asset_prices():
 @pytest.fixture
 def populated_db(tmp_path, multi_asset_prices):
     """DB with all 4 assets injected."""
-    from core.database_v2 import init_full_db
-    from core.database import db_conn
+    from quantsim.core.database_v2 import init_full_db
+    from quantsim.core.database import db_conn
 
     db_path = str(tmp_path / "full.db")
     os.environ["QUANTSIM_DB"] = db_path
@@ -74,11 +73,11 @@ def populated_db(tmp_path, multi_asset_prices):
 class TestEventEngineE2E:
     def test_buy_and_hold_positive_return_strong_drift(self, tmp_path):
         """Strong upward drift → positive total return is guaranteed."""
-        from core.database_v2 import init_full_db
-        from core.database import db_conn
-        from strategies.momentum_factor import BuyAndHold
-        from core.event_queue import EventQueue
-        from backtesting.engine import BacktestEngine
+        from quantsim.core.database_v2 import init_full_db
+        from quantsim.core.database import db_conn
+        from quantsim.strategies.momentum_factor import BuyAndHold
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.backtesting.engine import BacktestEngine
 
         db_path = str(tmp_path / "bah.db")
         os.environ["QUANTSIM_DB"] = db_path
@@ -118,9 +117,9 @@ class TestEventEngineE2E:
 
     def test_sma_crossover_generates_multiple_signals(self, populated_db, multi_asset_prices):
         """SMA on oscillating price series must generate ≥2 crossover signals."""
-        from strategies.trend import SMAcrossover
-        from core.event_queue import EventQueue
-        from backtesting.engine import BacktestEngine
+        from quantsim.strategies.trend import SMAcrossover
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.backtesting.engine import BacktestEngine
 
         # Create oscillating (mean-reverting) series to force crossovers
         np.random.seed(7)
@@ -129,7 +128,7 @@ class TestEventEngineE2E:
         t = np.linspace(0, 6 * np.pi, n)
         prices = 100 + 25 * np.sin(t) + np.random.normal(0, 1, n)
 
-        from core.database import db_conn
+        from quantsim.core.database import db_conn
         db_path = populated_db
         with db_conn(db_path) as conn:
             for d, p in zip(dates, prices):
@@ -159,11 +158,11 @@ class TestEventEngineE2E:
 
     def test_equity_history_spans_full_backtest_period(self, tmp_path):
         """Equity history must have entries throughout the full backtest, not just warmup end."""
-        from core.database_v2 import init_full_db
-        from core.database import db_conn
-        from strategies.momentum_factor import BuyAndHold
-        from core.event_queue import EventQueue
-        from backtesting.engine import BacktestEngine
+        from quantsim.core.database_v2 import init_full_db
+        from quantsim.core.database import db_conn
+        from quantsim.strategies.momentum_factor import BuyAndHold
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.backtesting.engine import BacktestEngine
 
         db_path = str(tmp_path / "span.db")
         os.environ["QUANTSIM_DB"] = db_path
@@ -211,14 +210,14 @@ class TestEventEngineE2E:
 
 class TestVectorizedE2E:
     def test_equity_curve_in_results(self, multi_asset_prices):
-        from backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
+        from quantsim.backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
         bt = VectorizedBacktester(multi_asset_prices)
         r = bt.run(sma_crossover_signal, {"fast": 20, "slow": 100})
         assert "_equity_curve" in r
         assert len(r["_equity_curve"]) == len(multi_asset_prices)
 
     def test_parameter_sweep_ranks_by_dsr(self, multi_asset_prices):
-        from backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
+        from quantsim.backtesting.vectorized import VectorizedBacktester, sma_crossover_signal
         bt = VectorizedBacktester(multi_asset_prices)
         df = bt.parameter_sweep(sma_crossover_signal, {"fast": [10, 20], "slow": [80, 120]})
         assert len(df) == 4
@@ -227,7 +226,7 @@ class TestVectorizedE2E:
             "Results not sorted by DSR"
 
     def test_all_signal_functions_return_results(self, multi_asset_prices):
-        from backtesting.vectorized import (
+        from quantsim.backtesting.vectorized import (
             VectorizedBacktester, sma_crossover_signal, rsi_signal,
             momentum_signal, bollinger_signal, donchian_signal
         )
@@ -242,8 +241,8 @@ class TestVectorizedE2E:
 
 class TestWalkForwardE2E:
     def test_wfo_returns_only_oos_metrics(self, multi_asset_prices):
-        from backtesting.walk_forward import WalkForwardOptimizer
-        from backtesting.vectorized import sma_crossover_signal
+        from quantsim.backtesting.walk_forward import WalkForwardOptimizer
+        from quantsim.backtesting.vectorized import sma_crossover_signal
 
         wfo = WalkForwardOptimizer(
             multi_asset_prices, train_years=1.0, test_months=6, step_months=6
@@ -260,7 +259,7 @@ class TestWalkForwardE2E:
         assert "summary" in results
 
     def test_regime_classifier_returns_four_regimes(self, multi_asset_prices):
-        from backtesting.walk_forward import RegimeAnalyzer
+        from quantsim.backtesting.walk_forward import RegimeAnalyzer
         spy = multi_asset_prices["SPY"]
         regimes = RegimeAnalyzer.classify_regimes(spy)
         expected = {"bull_low_vol", "bull_high_vol", "bear_low_vol", "bear_high_vol"}
@@ -273,14 +272,14 @@ class TestWalkForwardE2E:
 
 class TestPortfolioOptE2E:
     def test_hrp_weights_sum_one_and_positive(self, multi_asset_prices):
-        from portfolio.optimization import HierarchicalRiskParity
+        from quantsim.portfolio.optimization import HierarchicalRiskParity
         returns = multi_asset_prices.pct_change().dropna()
         w = HierarchicalRiskParity().optimize(returns)
         assert abs(sum(w.values()) - 1.0) < 1e-6
         assert all(v >= 0 for v in w.values())
 
     def test_risk_parity_equal_contribution(self, multi_asset_prices):
-        from portfolio.optimization import RiskParityOptimizer, compute_covariance
+        from quantsim.portfolio.optimization import RiskParityOptimizer, compute_covariance
         import numpy as np
         returns = multi_asset_prices.pct_change().dropna()
         rp = RiskParityOptimizer()
@@ -296,7 +295,7 @@ class TestPortfolioOptE2E:
 
     def test_black_litterman_moves_toward_view(self, multi_asset_prices):
         """A LONG view on SPY should tilt weights toward SPY vs no-view baseline."""
-        from portfolio.optimization import BlackLittermanOptimizer
+        from quantsim.portfolio.optimization import BlackLittermanOptimizer
         returns = multi_asset_prices.pct_change().dropna()
         bl = BlackLittermanOptimizer()
 
@@ -318,7 +317,7 @@ class TestPortfolioOptE2E:
 
 class TestGARCHE2E:
     def test_vol_forecast_in_realistic_range(self, multi_asset_prices):
-        from strategies.garch_vol import GARCHVolatilityAdapter
+        from quantsim.strategies.garch_vol import GARCHVolatilityAdapter
         adapter = GARCHVolatilityAdapter(fit_window=150, refit_every=30)
         returns = multi_asset_prices["SPY"].pct_change().dropna()
         for r in returns:
@@ -331,7 +330,7 @@ class TestGARCHE2E:
             f"GARCH {vol:.3f} too far from realized {realized_vol:.3f}"
 
     def test_leverage_inversely_proportional_to_vol(self):
-        from strategies.garch_vol import GARCHForecaster
+        from quantsim.strategies.garch_vol import GARCHForecaster
         fc = GARCHForecaster(vol_target_annual=0.12)
         # Low vol → high leverage (capped at 2.0)
         lev_low = fc.leverage_for_target_vol(0.05)
@@ -346,7 +345,7 @@ class TestGARCHE2E:
 
 class TestOrderManagerE2E:
     def make_bar(self, price, high=None, low=None, dt=None):
-        from core.events import BarEvent
+        from quantsim.core.events import BarEvent
         return BarEvent(
             timestamp=dt or datetime(2022, 1, 3),
             asset_id="SPY",
@@ -358,9 +357,9 @@ class TestOrderManagerE2E:
 
     def test_bracket_order_full_lifecycle(self):
         """Entry → price rises → target hit → stop cancelled."""
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
-        from core.events import Direction
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.core.events import Direction
 
         eq = EventQueue()
         om = OrderManager(event_queue=eq)
@@ -385,8 +384,8 @@ class TestOrderManagerE2E:
 
     def test_trailing_stop_locks_in_profit(self):
         """Trailing stop should move up with price, locking in profit."""
-        from backtesting.order_manager import OrderManager
-        from core.event_queue import EventQueue
+        from quantsim.backtesting.order_manager import OrderManager
+        from quantsim.core.event_queue import EventQueue
 
         eq = EventQueue()
         om = OrderManager(event_queue=eq)
@@ -416,7 +415,7 @@ class TestReportingE2E:
         )
 
     def test_tearsheet_all_sections_present(self):
-        from reporting.tearsheet import generate_tearsheet
+        from quantsim.reporting.tearsheet import generate_tearsheet
         equity = self.make_equity()
         html = generate_tearsheet(equity, "E2E Test Strategy")
         required = ["Sharpe Ratio", "Max Drawdown", "CAGR", "Deflated SR",
@@ -426,7 +425,7 @@ class TestReportingE2E:
 
     def test_tearsheet_with_complete_inputs(self):
         """Tearsheet with trades, benchmark, and WFO results."""
-        from reporting.tearsheet import generate_tearsheet
+        from quantsim.reporting.tearsheet import generate_tearsheet
         equity = self.make_equity()
         benchmark = self.make_equity(seed=99)
         trades = pd.DataFrame([{
@@ -450,7 +449,7 @@ class TestReportingE2E:
 
     def test_monte_carlo_ci_width_decreases_with_more_data(self):
         """Longer samples → narrower confidence interval on Sharpe."""
-        from reporting.advanced import AdvancedAnalytics
+        from quantsim.reporting.advanced import AdvancedAnalytics
         np.random.seed(42)
         returns_short = pd.Series(np.random.normal(0.0004, 0.012, 60))
         returns_long = pd.Series(np.random.normal(0.0004, 0.012, 500))
@@ -465,7 +464,7 @@ class TestReportingE2E:
 
     def test_full_report_verdict_correct(self):
         """Strong Sharpe → proceed=True; weak Sharpe → proceed=False."""
-        from reporting.advanced import generate_full_report
+        from quantsim.reporting.advanced import generate_full_report
         np.random.seed(42)
         dates = pd.date_range("2015-01-01", periods=2000, freq="B")
         # Strong return → should pass
@@ -480,8 +479,8 @@ class TestReportingE2E:
 
 class TestStrategyRegistryE2E:
     def test_all_standard_strategies_buildable(self):
-        from strategies.registry import StrategyRegistry
-        from core.event_queue import EventQueue
+        from quantsim.strategies.registry import StrategyRegistry
+        from quantsim.core.event_queue import EventQueue
         # Skip strategies with special constructors
         skip = {"pairs", "dual_momentum", "covered_call", "iron_condor",
                 "long_straddle", "ml_xsectional"}
@@ -497,8 +496,8 @@ class TestStrategyRegistryE2E:
 
     def test_signal_aggregator_majority_and_confidence(self):
         """majority_vote and confidence_weighted: 2 LONG vs 1 SHORT → LONG."""
-        from strategies.registry import SignalAggregator
-        from core.events import SignalEvent, Direction
+        from quantsim.strategies.registry import SignalAggregator
+        from quantsim.core.events import SignalEvent, Direction
         for method in ["majority_vote", "confidence_weighted"]:
             agg = SignalAggregator(method=method)
             for i in range(3):
@@ -519,8 +518,8 @@ class TestStrategyRegistryE2E:
         """orthogonality_checked: same-type signals collapse to one vote.
         Two LONG-trend signals = one LONG-trend vote.
         Result vs one SHORT-trend = 1:1 tie → net_score=0 → FLAT. That is correct."""
-        from strategies.registry import SignalAggregator
-        from core.events import SignalEvent, Direction
+        from quantsim.strategies.registry import SignalAggregator
+        from quantsim.core.events import SignalEvent, Direction
         agg = SignalAggregator(method="orthogonality_checked")
         # Two LONG trend signals collapse to one vote
         agg.add_signal(SignalEvent(timestamp=datetime(2022, 1, 3),
@@ -542,8 +541,8 @@ class TestStrategyRegistryE2E:
 
     def test_signal_aggregator_orthogonality_different_types_give_long(self):
         """Two LONG signals from different types beat one SHORT = LONG."""
-        from strategies.registry import SignalAggregator
-        from core.events import SignalEvent, Direction
+        from quantsim.strategies.registry import SignalAggregator
+        from quantsim.core.events import SignalEvent, Direction
         agg = SignalAggregator(method="orthogonality_checked", direction_threshold=0.15)
         agg.add_signal(SignalEvent(timestamp=datetime(2022, 1, 3),
             strategy_id="trend_1", asset_id="SPY", direction=Direction.LONG,

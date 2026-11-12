@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantsim"
-version = "2.0.0"
+version = "3.0.0"
 description = "Event-driven and vectorized daily-bar backtesting with walk-forward testing and a deflated Sharpe check."
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -39,13 +39,18 @@ all = [
     "plotly>=5.18.0",
     "numba>=0.57.0",
 ]
-dev = ["pytest>=7.4.0", "pytest-asyncio>=0.23.0", "hypothesis>=6.0"]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "hypothesis>=6.0",
+    "jsonschema>=4.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "playwright>=1.45",
+]
 
 [project.scripts]
-quantsim-backtest = "scripts.run_backtest:main"
-quantsim-paper   = "scripts.run_paper_trading:main"
-quantsim-wfo     = "scripts.run_wfo:main"
-quantsim-bootstrap = "scripts.bootstrap_data:main"
+quantsim = "quantsim.cli.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -60,9 +65,4 @@ filterwarnings = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = [
-    "core*", "data*", "strategies*", "backtesting*",
-    "portfolio*", "risk*", "reporting*", "paper_trading*",
-    "dashboard*", "scripts*",
-]
+where = ["src"]
