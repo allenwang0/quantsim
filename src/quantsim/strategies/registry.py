@@ -132,11 +132,6 @@ def _register_all_strategies():
         DualMomentum,
         LowVolatilityFactor,
     )
-    from quantsim.strategies.options_strategies import (
-        CoveredCallStrategy,
-        IronCondorStrategy,
-        LongStraddleStrategy,
-    )
     from quantsim.strategies.trend import (
         ADXFilteredTrend,
         DonchianBreakout,
@@ -253,30 +248,6 @@ def _register_all_strategies():
             "Low volatility factor (Baker et al.)",
             "factor",
             ["equity"],
-        ),
-        (
-            "covered_call",
-            CoveredCallStrategy,
-            "Covered call income strategy",
-            "options",
-            ["equity", "etf"],
-            {},
-        ),
-        (
-            "iron_condor",
-            IronCondorStrategy,
-            "Iron condor theta decay",
-            "options",
-            ["equity", "etf"],
-            {},
-        ),
-        (
-            "long_straddle",
-            LongStraddleStrategy,
-            "Long straddle for high vol events",
-            "options",
-            ["equity", "etf"],
-            {},
         ),
     ]
 

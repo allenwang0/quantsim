@@ -91,8 +91,7 @@ class TestStrategyRegistry:
         from quantsim.strategies.registry import StrategyRegistry
 
         df = StrategyRegistry.list_all()
-        # Skip options strategies (they need single asset_id, not list)
-        skip = {"covered_call", "iron_condor", "long_straddle", "pairs"}
+        skip = {"pairs"}
         for _, row in df.iterrows():
             name = row["name"]
             if name in skip:

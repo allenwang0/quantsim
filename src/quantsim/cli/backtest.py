@@ -15,9 +15,8 @@ Usage:
   # Event-driven backtest
   quantsim backtest --strategy sma --symbol SPY
   quantsim backtest --strategy donchian --symbol SPY QQQ GLD TLT IWM
-  quantsim backtest --strategy iron_condor --symbol SPY
 
-  # Vectorized backtest (100x faster, good for research)
+  # Vectorized backtest (for research and sweeps)
   quantsim backtest --mode vectorized --strategy sma --symbol SPY QQQ
 
   # Parameter sweep
@@ -26,16 +25,12 @@ Usage:
   # Walk-forward optimization
   quantsim backtest --mode wfo --strategy sma --symbol SPY
 
-  # With portfolio optimization overlay
-  quantsim backtest --strategy tsmom --optimizer hrp --symbol SPY QQQ GLD TLT
-
   # Ensemble of strategies
   quantsim backtest --strategy sma ema macd --ensemble --symbol SPY QQQ
 
 Available strategies:
   buy_and_hold, sma, ema, macd, donchian, adx, tsmom,
-  bollinger, rsi, xs_momentum, dual_momentum, low_vol,
-  covered_call, iron_condor, long_straddle
+  bollinger, rsi, xs_momentum, dual_momentum, low_vol, pairs
 """
 
 import argparse

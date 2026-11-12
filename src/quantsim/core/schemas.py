@@ -20,7 +20,7 @@ class RawBar:
     close: float  # unadjusted
     volume: int
     exchange: str = ""
-    source: str = ""  # 'yfinance', 'stooq', etc.
+    source: str = ""  # 'yfinance', 'alpaca', 'synthetic'
 
     def validate(self) -> bool:
         """Detect common data quality failures."""

@@ -16,7 +16,6 @@ dependencies = [
     "yfinance>=0.2.40",
     "fredapi>=0.5.1",
     "pandas-market-calendars>=4.3.0",
-    "py_vollib>=1.0.1",
     "sqlalchemy>=2.0.0",
     "arch>=6.2.0",
     "aiohttp>=3.9.0",

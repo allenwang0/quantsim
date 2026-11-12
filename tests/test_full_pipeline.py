@@ -571,9 +571,6 @@ class TestStrategyRegistryE2E:
         skip = {
             "pairs",
             "dual_momentum",
-            "covered_call",
-            "iron_condor",
-            "long_straddle",
             "ml_xsectional",
         }
         df = StrategyRegistry.list_all()

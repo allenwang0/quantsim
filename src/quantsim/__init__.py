@@ -25,7 +25,6 @@ from quantsim.core.event_queue import EventQueue
 from quantsim.core.events import BarEvent, Direction, FillEvent, OrderEvent, SignalEvent
 from quantsim.data.data_handler import HistoricalDataHandler
 from quantsim.data.ingestion import fetch_equity_history, fetch_fred_series, get_bars, get_universe
-from quantsim.data.options import compute_greeks, compute_iv_rank, reconstruct_chain
 from quantsim.portfolio.manager import PortfolioManager
 from quantsim.portfolio.optimization import (
     BlackLittermanOptimizer,

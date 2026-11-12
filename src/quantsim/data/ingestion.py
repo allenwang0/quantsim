@@ -1,6 +1,6 @@
 """
-Data ingestion layer. Sources: yfinance (primary equities), FRED (macro),
-Stooq (bulk historical). All data normalized to canonical schemas.
+Data ingestion layer. Sources: yfinance (primary equities) and FRED (macro).
+Data is normalized to canonical schemas.
 
 Critical: stores only RAW (unadjusted) prices. Adjustment factors stored separately.
 """

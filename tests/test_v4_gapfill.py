@@ -280,7 +280,7 @@ class TestRegistryCompleteness:
 
         df = StrategyRegistry.list_all()
         types = set(df["type"].values)
-        required_types = {"trend", "mean_reversion", "momentum", "factor", "options", "ml"}
+        required_types = {"trend", "mean_reversion", "momentum", "factor", "ml"}
         for t in required_types:
             assert t in types, f"Strategy type '{t}' missing from registry"
 
@@ -289,7 +289,7 @@ class TestRegistryCompleteness:
 
         df = StrategyRegistry.list_all()
         assert isinstance(df, pd.DataFrame)
-        assert len(df) >= 15  # at least 15 strategies
+        assert len(df) >= 14
 
 
 # ── pyproject.toml validity ───────────────────────────────────────────────────
