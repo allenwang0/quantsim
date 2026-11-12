@@ -8,11 +8,9 @@ Usage:
   quantsim bootstrap --fred-only
 """
 
-import sys
-import os
 import argparse
 import logging
-
+import os
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,7 +29,8 @@ def main(argv=None):
     parser.add_argument("--db", default=None, help="Database path override")
     args = parser.parse_args(argv)
 
-    from quantsim.core.database import init_db, DB_PATH
+    from quantsim.core.database import DB_PATH, init_db
+
     db_path = args.db or DB_PATH
     if args.db:
         os.environ["QUANTSIM_DB"] = args.db
@@ -41,7 +40,7 @@ def main(argv=None):
 
     # ── FRED Macro Data ──────────────────────────────────────────────────────
     logger.info("Downloading FRED macro series...")
-    from quantsim.data.ingestion import fetch_fred_series, FRED_SERIES
+    from quantsim.data.ingestion import FRED_SERIES, fetch_fred_series
 
     fred_results = fetch_fred_series(
         series_ids=list(FRED_SERIES.keys()),
@@ -57,7 +56,7 @@ def main(argv=None):
         return
 
     # ── Equity Data ──────────────────────────────────────────────────────────
-    from quantsim.data.ingestion import get_universe, fetch_equity_history
+    from quantsim.data.ingestion import fetch_equity_history, get_universe
 
     if args.symbols:
         universe = args.symbols
@@ -85,7 +84,9 @@ def main(argv=None):
     # Summary of failures
     failed = [s for s, v in results.items() if v == 0]
     if failed:
-        logger.warning(f"Failed symbols ({len(failed)}): {failed[:10]}{'...' if len(failed)>10 else ''}")
+        logger.warning(
+            f"Failed symbols ({len(failed)}): {failed[:10]}{'...' if len(failed) > 10 else ''}"
+        )
 
 
 if __name__ == "__main__":
@@ -98,10 +99,11 @@ def _bootstrap_with_progress(symbols, start, end, db_path):
     for i, sym in enumerate(symbols):
         pct = int((i + 1) / total * 40)
         bar = "█" * pct + "░" * (40 - pct)
-        print(f"\r[{bar}] {i+1}/{total} {sym:<10}", end="", flush=True)
+        print(f"\r[{bar}] {i + 1}/{total} {sym:<10}", end="", flush=True)
         try:
             from quantsim.data.ingestion import fetch_equity_history
+
             fetch_equity_history([sym], start=start, end=end, db_path=db_path)
-        except Exception as e:
+        except Exception:
             pass
     print(f"\r{'Done':50}")

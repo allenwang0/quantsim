@@ -12,9 +12,10 @@ What institutional quant research adds beyond basic Sharpe/drawdown:
 """
 
 from __future__ import annotations
+
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -57,14 +58,16 @@ class AdvancedAnalytics:
         new_block = rng.random((n_simulations, n)) < 1.0 / block_size
         fresh_starts = rng.integers(0, n, (n_simulations, n))
         for t in range(1, n):
-            indices[:, t] = np.where(new_block[:, t], fresh_starts[:, t], (indices[:, t - 1] + 1) % n)
+            indices[:, t] = np.where(
+                new_block[:, t], fresh_starts[:, t], (indices[:, t - 1] + 1) % n
+            )
 
         excess = returns_arr[indices] - rf_daily
         sharpe_samples = excess.mean(axis=1) / (excess.std(axis=1) + 1e-10) * np.sqrt(252)
 
         alpha = 1 - confidence_level
-        ci_low = np.percentile(sharpe_samples, alpha/2 * 100)
-        ci_high = np.percentile(sharpe_samples, (1 - alpha/2) * 100)
+        ci_low = np.percentile(sharpe_samples, alpha / 2 * 100)
+        ci_high = np.percentile(sharpe_samples, (1 - alpha / 2) * 100)
 
         actual_sharpe = float(
             (daily_returns.mean() - rf_daily) / (daily_returns.std() + 1e-10) * np.sqrt(252)
@@ -78,9 +81,7 @@ class AdvancedAnalytics:
             "n_simulations": n_simulations,
             "p_positive_sharpe": float((sharpe_samples > 0).mean()),
             "warning": (
-                "Wide confidence interval: need more data"
-                if (ci_high - ci_low) > 1.0
-                else ""
+                "Wide confidence interval: need more data" if (ci_high - ci_low) > 1.0 else ""
             ),
         }
 
@@ -93,10 +94,10 @@ class AdvancedAnalytics:
         """
         Compute IC (Information Coefficient) at each forward horizon.
         Shows how quickly the signal's predictive power decays.
-        
+
         A momentum signal might have IC=0.03 at 1 day, 0.05 at 21 days,
         decaying to 0 at 252 days. The peak IC horizon is when to hold.
-        
+
         Returns DataFrame: horizons x columns=[IC, rank_IC, std_IC, t_stat]
         """
         results = []
@@ -120,18 +121,20 @@ class AdvancedAnalytics:
 
             if ics:
                 ics_arr = np.array(ics)
-                t_stat = float(
-                    np.mean(ics_arr) / (np.std(ics_arr) / np.sqrt(len(ics_arr)) + 1e-10)
+                t_stat = float(np.mean(ics_arr) / (np.std(ics_arr) / np.sqrt(len(ics_arr)) + 1e-10))
+                results.append(
+                    {
+                        "horizon": h,
+                        "mean_ic": float(np.mean(ics_arr)),
+                        "std_ic": float(np.std(ics_arr)),
+                        "ir": float(
+                            np.mean(ics_arr) / (np.std(ics_arr) + 1e-10)
+                        ),  # information ratio
+                        "t_stat": t_stat,
+                        "pct_positive": float((ics_arr > 0).mean()),
+                        "n_obs": len(ics_arr),
+                    }
                 )
-                results.append({
-                    "horizon": h,
-                    "mean_ic": float(np.mean(ics_arr)),
-                    "std_ic": float(np.std(ics_arr)),
-                    "ir": float(np.mean(ics_arr) / (np.std(ics_arr) + 1e-10)),  # information ratio
-                    "t_stat": t_stat,
-                    "pct_positive": float((ics_arr > 0).mean()),
-                    "n_obs": len(ics_arr),
-                })
 
         return pd.DataFrame(results).set_index("horizon")
 
@@ -143,11 +146,11 @@ class AdvancedAnalytics:
     ) -> Dict:
         """
         Analyze portfolio turnover and its cost impact.
-        
+
         High-turnover strategies that look profitable on paper often fail
         once realistic transaction costs are applied. This is the most
         common reason retail backtests overstate real performance.
-        
+
         Returns turnover rate, estimated annual transaction cost drag,
         and break-even commission rate.
         """
@@ -165,7 +168,9 @@ class AdvancedAnalytics:
         raw_returns = prices.pct_change()
         if not signals.empty and not raw_returns.empty:
             weighted_returns = (signals.shift(1) * raw_returns).sum(axis=1)
-            gross_annual_return = float((1 + weighted_returns).prod() ** (252 / len(weighted_returns)) - 1)
+            gross_annual_return = float(
+                (1 + weighted_returns).prod() ** (252 / len(weighted_returns)) - 1
+            )
         else:
             gross_annual_return = 0.0
 
@@ -193,11 +198,11 @@ class AdvancedAnalytics:
     ) -> Dict:
         """
         Estimate how a strategy scales with capital.
-        
+
         Market impact grows as sqrt(order_size / ADV).
         A strategy that works at $100K may not work at $10M
         if it needs to trade illiquid names.
-        
+
         Returns the estimated performance degradation at target capital.
         """
         if trades_df.empty:
@@ -211,7 +216,9 @@ class AdvancedAnalytics:
 
         # Current market impact cost (Almgren-Chriss)
         k = 0.1  # impact constant
-        current_participation = avg_trade_size_current / (avg_daily_volume_usd / prices.mean().mean() + 1)
+        current_participation = avg_trade_size_current / (
+            avg_daily_volume_usd / prices.mean().mean() + 1
+        )
         current_slippage = float(k * np.sqrt(current_participation))
 
         # Slippage at target capital
@@ -229,7 +236,7 @@ class AdvancedAnalytics:
             "slippage_increase_pct": slippage_increase * 100,
             "annual_slippage_drag_bps": slippage_increase * 10_000 * 2,  # round trip
             "max_viable_capital_estimate": float(
-                current_capital * (adv_fraction ** 2) / (current_participation + 1e-10)
+                current_capital * (adv_fraction**2) / (current_participation + 1e-10)
             ),
             "recommendation": (
                 "Strategy is capacity-constrained at target capital"
@@ -287,6 +294,7 @@ class AdvancedAnalytics:
                 y = strat_ret.values
                 try:
                     from sklearn.linear_model import Ridge
+
                     model = Ridge(alpha=0.01)
                     model.fit(X, y)
                     factor_betas = dict(zip(factor_returns.columns, model.coef_))
@@ -312,6 +320,7 @@ def generate_full_report(
     Generate a comprehensive report combining all analytics modules.
     """
     from quantsim.reporting.analytics import PerformanceAnalytics
+
     analytics = PerformanceAnalytics()
     advanced = AdvancedAnalytics()
 

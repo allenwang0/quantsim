@@ -5,7 +5,7 @@ The engine used to fill orders inside the bar that produced the signal, at
 that bar's open: a price that was already in the past when the signal was
 known. These tests use synthetic bars only.
 """
-from datetime import datetime
+
 
 import numpy as np
 import pytest
@@ -118,9 +118,7 @@ def test_knowing_todays_close_gives_no_edge_on_random_walks(tmp_path):
         write_bars(db_path, "SYN", dates, opens, closes)
         peek, _ = run_engine(db_path, KnowsTodaysClose, dates)
         hold, _ = run_engine(db_path, BuyAndHold, dates)
-        excess.append(
-            peek.portfolio.total_equity / 100_000 - hold.portfolio.total_equity / 100_000
-        )
+        excess.append(peek.portfolio.total_equity / 100_000 - hold.portfolio.total_equity / 100_000)
 
     excess = np.array(excess)
     standard_error = excess.std(ddof=1) / np.sqrt(n_walks)

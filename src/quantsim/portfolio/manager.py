@@ -5,6 +5,7 @@ Enforces concentration limits and handles multi-strategy coordination.
 """
 
 from __future__ import annotations
+
 import json
 import logging
 import uuid
@@ -12,13 +13,20 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Set
 
-from quantsim.core.events import (
-    SignalEvent, OrderEvent, FillEvent, BarEvent,
-    Direction, OrderType, OrderSide, AssetType, TimeInForce,
-)
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import (
+    AssetType,
+    BarEvent,
+    Direction,
+    FillEvent,
+    OrderEvent,
+    OrderSide,
+    OrderType,
+    SignalEvent,
+    TimeInForce,
+)
 from quantsim.portfolio.portfolio import Portfolio
-from quantsim.portfolio.sizing import PositionSizer, EqualWeightSizer
+from quantsim.portfolio.sizing import EqualWeightSizer, PositionSizer
 from quantsim.risk.risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
@@ -27,12 +35,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CapitalRequest:
     """Request submitted by a strategy for capital allocation."""
+
     request_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     strategy_id: str = ""
     asset_id: str = ""
     requested_dollar_size: float = 0.0
     direction: Direction = Direction.FLAT
-    priority: int = 5         # lower = higher priority
+    priority: int = 5  # lower = higher priority
     confidence: float = 1.0
     correlated_with: List[str] = field(default_factory=list)
     metadata: Dict = field(default_factory=dict)
@@ -41,14 +50,14 @@ class CapitalRequest:
 class PortfolioManager:
     """
     Translates SignalEvents into OrderEvents using the shared capital pool model.
-    
+
     Arbitration sequence (per spec):
     1. Check total buying power; reject if insufficient
     2. Check concentration: no single position > max_position_pct of portfolio
     3. Check correlation with existing positions
     4. Check sector/strategy exposure
     5. If approved: compute size, emit OrderEvent
-    
+
     Supports both isolated capital model (simple) and shared capital model (production).
     """
 
@@ -210,15 +219,19 @@ class PortfolioManager:
         self._strategy_positions.setdefault(signal.strategy_id, set()).add(asset_id)
 
         self._queue.put(order)
-        self._log_event("ORDER", signal.timestamp, {
-            "order_id": order.order_id,
-            "asset_id": asset_id,
-            "side": side.value,
-            "quantity": quantity,
-            "price_estimate": price,
-            "strategy_id": signal.strategy_id,
-            "confidence": signal.confidence,
-        })
+        self._log_event(
+            "ORDER",
+            signal.timestamp,
+            {
+                "order_id": order.order_id,
+                "asset_id": asset_id,
+                "side": side.value,
+                "quantity": quantity,
+                "price_estimate": price,
+                "strategy_id": signal.strategy_id,
+                "confidence": signal.confidence,
+            },
+        )
         return order
 
     def on_fill(self, fill: FillEvent) -> None:
@@ -245,8 +258,9 @@ class PortfolioManager:
     def _log_strategy_performance(self, fill) -> None:
         """Log per-strategy daily P&L to strategy_performance table."""
         try:
+
             from quantsim.core.database import db_conn
-            import time
+
             ts_epoch = int(fill.timestamp.timestamp())
             equity = self.portfolio.total_equity
             rpnl = self.portfolio.realized_pnl
@@ -258,9 +272,20 @@ class PortfolioManager:
                        (timestamp, strategy_id, daily_pnl, realized_pnl,
                         unrealized_pnl, n_positions)
                        VALUES (?, ?, ?, ?, ?, ?)""",
-                    (ts_epoch, fill.strategy_id,
-                     fill.fill_price * fill.quantity * (-1 if fill.side.value in ('SELL','SELL_TO_OPEN','SELL_TO_CLOSE') else 1),
-                     rpnl, upnl, n_pos),
+                    (
+                        ts_epoch,
+                        fill.strategy_id,
+                        fill.fill_price
+                        * fill.quantity
+                        * (
+                            -1
+                            if fill.side.value in ("SELL", "SELL_TO_OPEN", "SELL_TO_CLOSE")
+                            else 1
+                        ),
+                        rpnl,
+                        upnl,
+                        n_pos,
+                    ),
                 )
         except Exception as e:
             logger.debug(f"Strategy performance log failed: {e}")
@@ -282,8 +307,8 @@ class PortfolioManager:
     def _record_trade(self, fill: FillEvent) -> None:
         """Record fill to trade log. Matches opens to closes."""
         try:
+
             from quantsim.core.database import db_conn
-            import time
 
             ts_epoch = int(fill.timestamp.timestamp())
             is_buy = fill.side in (OrderSide.BUY, OrderSide.BUY_TO_OPEN, OrderSide.BUY_TO_CLOSE)
@@ -306,8 +331,7 @@ class PortfolioManager:
                         """UPDATE trades SET exit_timestamp=?, exit_price=?,
                            realized_pnl=?, holding_bars=?
                            WHERE trade_id=?""",
-                        (ts_epoch, fill.fill_price, realized_pnl,
-                         0, open_trade["trade_id"]),
+                        (ts_epoch, fill.fill_price, realized_pnl, 0, open_trade["trade_id"]),
                     )
                 elif is_buy:
                     # Opening a new long trade
@@ -316,9 +340,16 @@ class PortfolioManager:
                            (trade_id, strategy_id, asset_id, direction,
                             entry_timestamp, entry_price, quantity, commission)
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (fill.order_id, fill.strategy_id, fill.asset_id,
-                         "LONG", ts_epoch, fill.fill_price,
-                         fill.quantity, fill.commission),
+                        (
+                            fill.order_id,
+                            fill.strategy_id,
+                            fill.asset_id,
+                            "LONG",
+                            ts_epoch,
+                            fill.fill_price,
+                            fill.quantity,
+                            fill.commission,
+                        ),
                     )
         except Exception as e:
             logger.error(f"Trade record failed: {e}")
@@ -329,10 +360,12 @@ class PortfolioManager:
             return
         try:
             from quantsim.core.database import db_conn
+
             ts_epoch = int(timestamp.timestamp())
             # Remove non-serializable fields
             clean_payload = {
-                k: v for k, v in payload.items()
+                k: v
+                for k, v in payload.items()
                 if isinstance(v, (str, int, float, bool, type(None)))
             }
             with db_conn(self._db_path) as conn:
@@ -404,6 +437,7 @@ class OptimizationOverlayManager(PortfolioManager):
     def _rebalance(self, timestamp) -> None:
         """Compute target weights and emit signals to reach them."""
         import pandas as pd
+
         if len(self._return_cache) < 2:
             return
 
@@ -412,9 +446,7 @@ class OptimizationOverlayManager(PortfolioManager):
         if min_len < 30:
             return
 
-        returns = pd.DataFrame({
-            k: v[-min_len:] for k, v in self._return_cache.items()
-        })
+        returns = pd.DataFrame({k: v[-min_len:] for k, v in self._return_cache.items()})
 
         try:
             weights = self._optimizer.optimize(returns)
@@ -440,6 +472,7 @@ class OptimizationOverlayManager(PortfolioManager):
 
         # Override the sizer to use the target weight directly
         from quantsim.core.events import Direction
+
         if signal.direction == Direction.FLAT:
             return super().on_signal(signal)
 
@@ -452,6 +485,8 @@ class OptimizationOverlayManager(PortfolioManager):
 
             # Override quantity via metadata
             signal.metadata["target_qty_override"] = target_qty
-            signal.confidence = min(1.0, signal.confidence * 1.5)  # boost confidence for optimizer-driven trades
+            signal.confidence = min(
+                1.0, signal.confidence * 1.5
+            )  # boost confidence for optimizer-driven trades
 
         return super().on_signal(signal)

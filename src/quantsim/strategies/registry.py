@@ -22,25 +22,28 @@ Signal aggregation methods (per spec):
 """
 
 from __future__ import annotations
+
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Type, Callable, Tuple, Any
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 
-from quantsim.core.events import SignalEvent, Direction, BarEvent
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, Direction, SignalEvent
 
 logger = logging.getLogger(__name__)
 
 
 # ── Strategy Registry ─────────────────────────────────────────────────────────
 
+
 class StrategyRegistry:
     """
     Central catalog of all available strategies.
-    
+
     Allows discovery by name, by type, and by asset class.
     Strategies register themselves or are registered by the factory.
     """
@@ -74,12 +77,14 @@ class StrategyRegistry:
         """Return a DataFrame summary of all registered strategies."""
         rows = []
         for name, info in cls._registry.items():
-            rows.append({
-                "name": name,
-                "type": info["type"],
-                "asset_classes": ", ".join(info["asset_classes"]),
-                "description": info["description"],
-            })
+            rows.append(
+                {
+                    "name": name,
+                    "type": info["type"],
+                    "asset_classes": ", ".join(info["asset_classes"]),
+                    "description": info["description"],
+                }
+            )
         return pd.DataFrame(rows)
 
     @classmethod
@@ -94,14 +99,13 @@ class StrategyRegistry:
         entry = cls._registry.get(name)
         if not entry:
             raise ValueError(
-                f"Strategy '{name}' not found. "
-                f"Available: {list(cls._registry.keys())}"
+                f"Strategy '{name}' not found. Available: {list(cls._registry.keys())}"
             )
         params = {**entry["default_params"], **kwargs}
         # Special handling for strategies that don't use asset_ids
-        if name == 'pairs':
-            asset_a = params.pop('asset_a', asset_ids[0] if len(asset_ids) > 0 else 'SPY')
-            asset_b = params.pop('asset_b', asset_ids[1] if len(asset_ids) > 1 else 'QQQ')
+        if name == "pairs":
+            asset_a = params.pop("asset_a", asset_ids[0] if len(asset_ids) > 0 else "SPY")
+            asset_b = params.pop("asset_b", asset_ids[1] if len(asset_ids) > 1 else "QQQ")
             return entry["class"](
                 asset_a=asset_a,
                 asset_b=asset_b,
@@ -117,31 +121,100 @@ class StrategyRegistry:
 
 def _register_all_strategies():
     """Register all built-in strategies."""
-    from quantsim.strategies.trend import (
-        SMAcrossover, EMACrossover, MACDStrategy,
-        DonchianBreakout, ADXFilteredTrend, TimeSeriesMomentum,
-    )
     from quantsim.strategies.mean_reversion import (
-        BollingerBandMeanReversion, RSIMeanReversion, PairsTradingStrategy,
+        BollingerBandMeanReversion,
+        PairsTradingStrategy,
+        RSIMeanReversion,
     )
     from quantsim.strategies.momentum_factor import (
-        CrossSectionalMomentum, DualMomentum, LowVolatilityFactor, BuyAndHold,
+        BuyAndHold,
+        CrossSectionalMomentum,
+        DualMomentum,
+        LowVolatilityFactor,
     )
     from quantsim.strategies.options_strategies import (
-        CoveredCallStrategy, IronCondorStrategy, LongStraddleStrategy,
+        CoveredCallStrategy,
+        IronCondorStrategy,
+        LongStraddleStrategy,
+    )
+    from quantsim.strategies.trend import (
+        ADXFilteredTrend,
+        DonchianBreakout,
+        EMACrossover,
+        MACDStrategy,
+        SMAcrossover,
+        TimeSeriesMomentum,
     )
 
     regs = [
-        ("buy_and_hold", BuyAndHold, "Buy and hold baseline (walking skeleton validation)", "passive", ["equity", "etf"]),
-        ("sma", SMAcrossover, "SMA crossover (50/200 default)", "trend", ["equity", "etf"], {"fast": 50, "slow": 200}),
-        ("ema", EMACrossover, "EMA crossover (12/26 default)", "trend", ["equity", "etf"], {"fast_span": 12, "slow_span": 26}),
+        (
+            "buy_and_hold",
+            BuyAndHold,
+            "Buy and hold baseline (walking skeleton validation)",
+            "passive",
+            ["equity", "etf"],
+        ),
+        (
+            "sma",
+            SMAcrossover,
+            "SMA crossover (50/200 default)",
+            "trend",
+            ["equity", "etf"],
+            {"fast": 50, "slow": 200},
+        ),
+        (
+            "ema",
+            EMACrossover,
+            "EMA crossover (12/26 default)",
+            "trend",
+            ["equity", "etf"],
+            {"fast_span": 12, "slow_span": 26},
+        ),
         ("macd", MACDStrategy, "MACD signal line crossover", "trend", ["equity", "etf"]),
-        ("donchian", DonchianBreakout, "Donchian channel breakout (Turtle)", "trend", ["equity", "etf", "commodity_etf"], {"entry_period": 20}),
-        ("adx", ADXFilteredTrend, "ADX-filtered trend (go flat when ranging)", "trend", ["equity", "etf"]),
-        ("tsmom", TimeSeriesMomentum, "Time-series momentum (Moskowitz et al.)", "trend", ["equity", "etf"], {"lookback_months": 12}),
-        ("bollinger", BollingerBandMeanReversion, "Bollinger Band mean reversion", "mean_reversion", ["equity"]),
-        ("rsi", RSIMeanReversion, "RSI oversold/overbought with trend filter", "mean_reversion", ["equity"]),
-        ("xs_momentum", CrossSectionalMomentum, "Cross-sectional momentum (Jegadeesh-Titman)", "momentum", ["equity"]),
+        (
+            "donchian",
+            DonchianBreakout,
+            "Donchian channel breakout (Turtle)",
+            "trend",
+            ["equity", "etf", "commodity_etf"],
+            {"entry_period": 20},
+        ),
+        (
+            "adx",
+            ADXFilteredTrend,
+            "ADX-filtered trend (go flat when ranging)",
+            "trend",
+            ["equity", "etf"],
+        ),
+        (
+            "tsmom",
+            TimeSeriesMomentum,
+            "Time-series momentum (Moskowitz et al.)",
+            "trend",
+            ["equity", "etf"],
+            {"lookback_months": 12},
+        ),
+        (
+            "bollinger",
+            BollingerBandMeanReversion,
+            "Bollinger Band mean reversion",
+            "mean_reversion",
+            ["equity"],
+        ),
+        (
+            "rsi",
+            RSIMeanReversion,
+            "RSI oversold/overbought with trend filter",
+            "mean_reversion",
+            ["equity"],
+        ),
+        (
+            "xs_momentum",
+            CrossSectionalMomentum,
+            "Cross-sectional momentum (Jegadeesh-Titman)",
+            "momentum",
+            ["equity"],
+        ),
         # DualMomentum has a non-standard constructor; registered but built manually
         # ("dual_momentum", DualMomentum, "Dual momentum (Antonacci)", "momentum", ["equity", "etf"]),
     ]
@@ -149,6 +222,7 @@ def _register_all_strategies():
     # Register DualMomentum separately with a factory wrapper
     class _DualMomWrapper:
         """Wraps DualMomentum to accept standard (asset_ids, event_queue) signature."""
+
         def __new__(cls, asset_ids, event_queue, **kwargs):
             return DualMomentum(
                 event_queue=event_queue,
@@ -166,11 +240,44 @@ def _register_all_strategies():
     )
 
     regs += [
-        ('pairs', PairsTradingStrategy, 'Pairs trading, Kalman-filter hedge ratio', 'mean_reversion', ['equity']),
-        ("low_vol", LowVolatilityFactor, "Low volatility factor (Baker et al.)", "factor", ["equity"]),
-        ("covered_call", CoveredCallStrategy, "Covered call income strategy", "options", ["equity", "etf"], {}),
-        ("iron_condor", IronCondorStrategy, "Iron condor theta decay", "options", ["equity", "etf"], {}),
-        ("long_straddle", LongStraddleStrategy, "Long straddle for high vol events", "options", ["equity", "etf"], {}),
+        (
+            "pairs",
+            PairsTradingStrategy,
+            "Pairs trading, Kalman-filter hedge ratio",
+            "mean_reversion",
+            ["equity"],
+        ),
+        (
+            "low_vol",
+            LowVolatilityFactor,
+            "Low volatility factor (Baker et al.)",
+            "factor",
+            ["equity"],
+        ),
+        (
+            "covered_call",
+            CoveredCallStrategy,
+            "Covered call income strategy",
+            "options",
+            ["equity", "etf"],
+            {},
+        ),
+        (
+            "iron_condor",
+            IronCondorStrategy,
+            "Iron condor theta decay",
+            "options",
+            ["equity", "etf"],
+            {},
+        ),
+        (
+            "long_straddle",
+            LongStraddleStrategy,
+            "Long straddle for high vol events",
+            "options",
+            ["equity", "etf"],
+            {},
+        ),
     ]
 
     for entry in regs:
@@ -193,26 +300,42 @@ def _register_all_strategies():
 def _register_ml_strategies():
     """Register ML strategies (optional - only if lightgbm available)."""
     try:
-        from quantsim.strategies.ml_strategy import MLCrossSectionalStrategy, TurbulenceFilteredStrategy
+        from quantsim.strategies.ml_strategy import (
+            MLCrossSectionalStrategy,
+            TurbulenceFilteredStrategy,
+        )
 
         class _MLWrapper:
             def __new__(cls, asset_ids, event_queue, **kwargs):
                 return MLCrossSectionalStrategy(
-                    asset_ids=asset_ids, event_queue=event_queue,
-                    **{k: v for k, v in kwargs.items()
-                       if k in ('train_years','retrain_months','top_n','bottom_n','min_ic','long_only')}
+                    asset_ids=asset_ids,
+                    event_queue=event_queue,
+                    **{
+                        k: v
+                        for k, v in kwargs.items()
+                        if k
+                        in (
+                            "train_years",
+                            "retrain_months",
+                            "top_n",
+                            "bottom_n",
+                            "min_ic",
+                            "long_only",
+                        )
+                    },
                 )
 
         StrategyRegistry.register(
-            name='ml_xsectional',
+            name="ml_xsectional",
             strategy_class=_MLWrapper,
-            description='ML cross-sectional alpha (LightGBM, QLib-inspired)',
-            strategy_type='ml',
-            asset_classes=['equity'],
-            default_params={'train_years': 3, 'top_n': 3, 'long_only': True},
+            description="ML cross-sectional alpha (LightGBM, QLib-inspired)",
+            strategy_type="ml",
+            asset_classes=["equity"],
+            default_params={"train_years": 3, "top_n": 3, "long_only": True},
         )
     except ImportError:
         pass  # lightgbm not installed
+
 
 # Auto-register on import
 try:
@@ -224,9 +347,11 @@ except Exception as e:
 
 # ── Signal Aggregator ──────────────────────────────────────────────────────────
 
+
 @dataclass
 class AggregatedSignal:
     """Result of combining signals from multiple strategies."""
+
     asset_id: str
     direction: Direction
     confidence: float
@@ -241,14 +366,14 @@ class SignalAggregator:
     """
     Combines SignalEvents from multiple strategies into a single
     actionable direction with confidence.
-    
+
     Three methods:
-    
+
     1. majority_vote: plurality wins; confidence = vote margin / total votes
     2. confidence_weighted: weighted average of numeric directions
     3. orthogonality_checked: same as confidence_weighted, but strategies
        of the same type on the same asset count as a single vote
-    
+
     The orthogonality check is critical: if you have 3 trend-following
     strategies all going long SPY, that's one directional bet counted three
     times, not three independent confirmations.
@@ -274,8 +399,7 @@ class SignalAggregator:
             self._signal_buffer[asset_id] = []
         # Replace any existing signal from the same strategy
         self._signal_buffer[asset_id] = [
-            s for s in self._signal_buffer[asset_id]
-            if s.strategy_id != signal.strategy_id
+            s for s in self._signal_buffer[asset_id] if s.strategy_id != signal.strategy_id
         ]
         self._signal_buffer[asset_id].append(signal)
 
@@ -345,9 +469,9 @@ class SignalAggregator:
         if total_conf == 0:
             total_conf = len(signals)
 
-        net_score = sum(
-            s.confidence * self._numeric_direction(s.direction) for s in signals
-        ) / total_conf
+        net_score = (
+            sum(s.confidence * self._numeric_direction(s.direction) for s in signals) / total_conf
+        )
 
         direction = self._direction_from_score(net_score)
         confidence = min(1.0, abs(net_score))
@@ -402,14 +526,15 @@ class SignalAggregator:
 
 # ── Strategy Correlation Monitor ──────────────────────────────────────────────
 
+
 class StrategyCorrelationMonitor:
     """
     Monitors pairwise correlation of strategy equity curves.
-    
+
     If two strategies have correlation > threshold, they are treated as
     one strategy for position sizing. This prevents inadvertent doubling
     of exposure when two strategies respond to the same signal.
-    
+
     Used by the PortfolioManager's CapitalRequest arbitration.
     """
 
@@ -424,8 +549,9 @@ class StrategyCorrelationMonitor:
         self._equity_histories[strategy_id].append(equity)
         # Keep only rolling window
         if len(self._equity_histories[strategy_id]) > self.window * 2:
-            self._equity_histories[strategy_id] = \
-                self._equity_histories[strategy_id][-self.window * 2:]
+            self._equity_histories[strategy_id] = self._equity_histories[strategy_id][
+                -self.window * 2 :
+            ]
 
     def get_correlated_pairs(self) -> List[Tuple[str, str, float]]:
         """
@@ -438,8 +564,8 @@ class StrategyCorrelationMonitor:
         for i in range(len(strategies)):
             for j in range(i + 1, len(strategies)):
                 a, b = strategies[i], strategies[j]
-                hist_a = self._equity_histories[a][-self.window:]
-                hist_b = self._equity_histories[b][-self.window:]
+                hist_a = self._equity_histories[a][-self.window :]
+                hist_b = self._equity_histories[b][-self.window :]
 
                 if len(hist_a) < 10 or len(hist_b) < 10:
                     continue
@@ -464,29 +590,29 @@ class StrategyCorrelationMonitor:
     def are_correlated(self, strategy_a: str, strategy_b: str) -> bool:
         pairs = self.get_correlated_pairs()
         for a, b, _ in pairs:
-            if (a == strategy_a and b == strategy_b) or \
-               (a == strategy_b and b == strategy_a):
+            if (a == strategy_a and b == strategy_b) or (a == strategy_b and b == strategy_a):
                 return True
         return False
 
 
 # ── Ensemble Engine ───────────────────────────────────────────────────────────
 
+
 class EnsembleEngine:
     """
     Runs multiple strategies in parallel and routes aggregated signals
     to the portfolio manager.
-    
+
     This is the top-level coordinator for multi-strategy systems.
     It replaces the simple "all strategies process the bar" loop
     in BacktestEngine with a proper signal aggregation pipeline.
-    
+
     Pipeline:
     1. All strategies process BarEvent -> emit SignalEvents to a local buffer
     2. SignalAggregator combines signals per asset
     3. Aggregated signals are emitted to the main EventQueue
     4. PortfolioManager processes them as normal
-    
+
     The EnsembleEngine is transparent to the rest of the system:
     the PortfolioManager and ExecutionHandler don't know they're
     receiving aggregated signals.
@@ -524,16 +650,14 @@ class EnsembleEngine:
                 try:
                     strategy.on_bar(event, data_handler)
                 except Exception as e:
-                    logger.error(
-                        f"Strategy {strategy.strategy_id} error "
-                        f"on {event.asset_id}: {e}"
-                    )
+                    logger.error(f"Strategy {strategy.strategy_id} error on {event.asset_id}: {e}")
 
         # Drain internal queue and add signals to aggregator
         pending_assets = set()
         while not self._internal_queue.empty():
             raw_event = self._internal_queue.get()
             from quantsim.core.events import EventType
+
             if raw_event.event_type == EventType.SIGNAL:
                 self.aggregator.add_signal(raw_event)
                 pending_assets.add(raw_event.asset_id)

@@ -4,14 +4,14 @@ GARCH forecasting, factor-based (value, low-vol), dual momentum, regime detectio
 """
 
 from __future__ import annotations
-import logging
-from datetime import datetime
-from typing import List, Dict, Optional, Tuple
-import numpy as np
-import pandas as pd
 
-from quantsim.core.events import BarEvent, SignalEvent, Direction
+import logging
+from typing import Dict, List
+
+import numpy as np
+
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, Direction
 from quantsim.data.data_handler import DataHandler
 from quantsim.strategies.trend import Strategy
 
@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 class CrossSectionalMomentum(Strategy):
     """
     Jegadeesh-Titman cross-sectional momentum.
-    
+
     Rank universe by 12-1 month return. Long top quintile, flat (or short) bottom.
     Rebalance monthly.
-    
+
     Transaction cost warning: high turnover destroys most of the gross alpha.
     Published Sharpe 0.8-1.2 → 0.3-0.5 after realistic transaction costs.
     Reference: Jegadeesh and Titman (1993).
@@ -90,8 +90,8 @@ class CrossSectionalMomentum(Strategy):
             return
 
         sorted_assets = sorted(returns.items(), key=lambda x: x[1], reverse=True)
-        new_longs = [a for a, _ in sorted_assets[:self.top_n]]
-        new_shorts = [a for a, _ in sorted_assets[-self.bottom_n:]] if not self.long_only else []
+        new_longs = [a for a, _ in sorted_assets[: self.top_n]]
+        new_shorts = [a for a, _ in sorted_assets[-self.bottom_n :]] if not self.long_only else []
 
         # Close positions that are no longer in the portfolio
         for asset in self._current_longs:
@@ -106,7 +106,9 @@ class CrossSectionalMomentum(Strategy):
         for asset in new_longs:
             if asset not in self._current_longs:
                 self._emit_signal(
-                    asset, Direction.LONG, event.timestamp,
+                    asset,
+                    Direction.LONG,
+                    event.timestamp,
                     confidence=0.8,
                     signal_type="xsmom",
                     holding_period=21,
@@ -116,7 +118,9 @@ class CrossSectionalMomentum(Strategy):
         for asset in new_shorts:
             if asset not in self._current_shorts:
                 self._emit_signal(
-                    asset, Direction.SHORT, event.timestamp,
+                    asset,
+                    Direction.SHORT,
+                    event.timestamp,
                     confidence=0.8,
                     signal_type="xsmom",
                     holding_period=21,
@@ -131,10 +135,10 @@ class VolatilityTargetingStrategy(Strategy):
     """
     Scale position size so portfolio volatility = target_vol.
     This is a sizing overlay, not a direction strategy.
-    
+
     target_leverage = target_annual_vol / realized_30day_vol
     Leverage capped at [0.25, 2.0].
-    
+
     Known failure mode: leverage increases before a volatility regime change.
     """
 
@@ -169,7 +173,7 @@ class VolatilityTargetingStrategy(Strategy):
         if not bars.empty and len(bars) >= self.vol_window:
             closes = bars["adj_close"] if "adj_close" in bars.columns else bars["close"]
             log_rets = np.log(closes / closes.shift(1)).dropna()
-            realized_vol = float(log_rets.iloc[-self.vol_window:].std() * np.sqrt(252))
+            realized_vol = float(log_rets.iloc[-self.vol_window :].std() * np.sqrt(252))
 
             if realized_vol > 0:
                 leverage = np.clip(
@@ -186,10 +190,10 @@ class VolatilityTargetingStrategy(Strategy):
 class VIXRegimeFilter(Strategy):
     """
     VIX-based regime filter applied as an overlay to all strategies.
-    
+
     VIX_20day_avg > 25: reduce all position sizes by 50% (set confidence = 0.5)
     VIX_20day_avg > 35: close all positions (FLAT signal for all held positions)
-    
+
     This is not a standalone strategy; it is a risk overlay.
     """
 
@@ -239,7 +243,9 @@ class VIXRegimeFilter(Strategy):
             # Emit FLAT for all assets
             for asset_id in self.asset_ids:
                 self._emit_signal(
-                    asset_id, Direction.FLAT, event.timestamp,
+                    asset_id,
+                    Direction.FLAT,
+                    event.timestamp,
                     signal_type="vix_regime_close",
                     metadata={"vix_20d": float(vix_20d_avg), "regime": self._regime},
                 )
@@ -248,12 +254,12 @@ class VIXRegimeFilter(Strategy):
 class DualMomentum(Strategy):
     """
     Antonacci (2014) Dual Momentum.
-    
+
     Absolute momentum: if SPY 12-month return > T-bill rate → equity; else bonds.
     Relative momentum: choose between SPY and EFA (higher 12-month return).
     Combined: apply relative first, then absolute.
     Monthly rebalance.
-    
+
     Reference: Antonacci (2014) "Dual Momentum Investing"
     """
 
@@ -322,14 +328,18 @@ class DualMomentum(Strategy):
             # Exit old holding
             if self._current_holding:
                 self._emit_signal(
-                    self._current_holding, Direction.FLAT, event.timestamp,
+                    self._current_holding,
+                    Direction.FLAT,
+                    event.timestamp,
                     signal_type="dual_mom_exit",
                 )
 
             # Enter new holding
             self._current_holding = new_holding
             self._emit_signal(
-                new_holding, Direction.LONG, event.timestamp,
+                new_holding,
+                Direction.LONG,
+                event.timestamp,
                 signal_type="dual_momentum",
                 holding_period=21,
                 metadata={"equity_return": float(best_equity_return), "tbill": float(tbill_return)},
@@ -382,7 +392,7 @@ class LowVolatilityFactor(Strategy):
                 continue
             closes = bars["adj_close"] if "adj_close" in bars.columns else bars["close"]
             log_rets = np.log(closes / closes.shift(1)).dropna()
-            vol = float(log_rets.iloc[-self.vol_window:].std() * np.sqrt(252))
+            vol = float(log_rets.iloc[-self.vol_window :].std() * np.sqrt(252))
             if vol > 0:
                 vols[aid] = vol
 
@@ -390,7 +400,7 @@ class LowVolatilityFactor(Strategy):
             return
 
         sorted_assets = sorted(vols.items(), key=lambda x: x[1])
-        new_holdings = [a for a, _ in sorted_assets[:self.top_n]]
+        new_holdings = [a for a, _ in sorted_assets[: self.top_n]]
 
         for asset in self._current_holdings:
             if asset not in new_holdings:
@@ -399,7 +409,9 @@ class LowVolatilityFactor(Strategy):
         for asset in new_holdings:
             if asset not in self._current_holdings:
                 self._emit_signal(
-                    asset, Direction.LONG, event.timestamp,
+                    asset,
+                    Direction.LONG,
+                    event.timestamp,
                     confidence=0.8,
                     signal_type="low_vol_factor",
                     holding_period=21,
@@ -438,7 +450,9 @@ class BuyAndHold(Strategy):
 
         self._bought.add(asset_id)
         self._emit_signal(
-            asset_id, Direction.LONG, event.timestamp,
+            asset_id,
+            Direction.LONG,
+            event.timestamp,
             signal_type="buy_and_hold",
             holding_period=99999,
         )

@@ -4,22 +4,23 @@ AdjustedBar is computed at query time. Never store adjusted prices.
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from datetime import datetime, date
-from typing import Optional, Literal
+
+from dataclasses import dataclass
+from datetime import date, datetime
+from typing import Literal, Optional
 
 
 @dataclass
 class RawBar:
     asset_id: str
-    timestamp: datetime       # UTC midnight for daily bars
-    open: float               # unadjusted
-    high: float               # unadjusted
-    low: float                # unadjusted
-    close: float              # unadjusted
+    timestamp: datetime  # UTC midnight for daily bars
+    open: float  # unadjusted
+    high: float  # unadjusted
+    low: float  # unadjusted
+    close: float  # unadjusted
     volume: int
     exchange: str = ""
-    source: str = ""          # 'yfinance', 'stooq', etc.
+    source: str = ""  # 'yfinance', 'stooq', etc.
 
     def validate(self) -> bool:
         """Detect common data quality failures."""
@@ -37,14 +38,15 @@ class RawBar:
 @dataclass
 class AdjustedBar:
     """Computed view. Never stored in the database."""
+
     asset_id: str
     timestamp: datetime
     open: float
     high: float
     low: float
-    close: float              # split-adjusted + dividend-adjusted (total return)
+    close: float  # split-adjusted + dividend-adjusted (total return)
     volume: int
-    raw_close: float          # original unadjusted close
+    raw_close: float  # original unadjusted close
     split_factor: float = 1.0
     div_adjustment: float = 0.0
 
@@ -53,7 +55,7 @@ class AdjustedBar:
 class AdjustmentFactor:
     asset_id: str
     effective_date: date
-    cumulative_split_factor: float    # multiply raw price by this → split-adjusted
+    cumulative_split_factor: float  # multiply raw price by this → split-adjusted
     cumulative_div_adjustment: float  # add to split-adjusted → total return price
 
 
@@ -69,10 +71,10 @@ class OptionsQuote:
     last: float
     volume: int
     open_interest: int
-    iv: float          # implied volatility as decimal (0.25 = 25%)
+    iv: float  # implied volatility as decimal (0.25 = 25%)
     delta: float
     gamma: float
-    theta: float       # per calendar day
+    theta: float  # per calendar day
     vega: float
     rho: float
     is_reconstructed: bool = True  # True if computed from BSM reconstruction
@@ -102,8 +104,8 @@ class OptionsQuote:
 @dataclass
 class MacroSeries:
     series_id: str
-    release_timestamp: date   # date the value was PUBLISHED (use for point-in-time)
-    reference_period: date    # period the value refers to
+    release_timestamp: date  # date the value was PUBLISHED (use for point-in-time)
+    reference_period: date  # period the value refers to
     value: float
     is_revised: bool = False
 
@@ -111,7 +113,7 @@ class MacroSeries:
 @dataclass
 class FundamentalData:
     asset_id: str
-    as_of_date: date          # SEC EDGAR filing date (point-in-time anchor)
+    as_of_date: date  # SEC EDGAR filing date (point-in-time anchor)
     market_cap: Optional[float] = None
     pe_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None

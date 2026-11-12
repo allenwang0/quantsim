@@ -5,6 +5,7 @@ The deflated Sharpe ratio is the check that keeps a parameter sweep honest,
 so it must be a probability, fall as more trials are run, and match the
 Bailey and Lopez de Prado (2014) formula on a case worked out by hand.
 """
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -29,8 +30,12 @@ def test_deflated_sharpe_hand_computed_case():
     DSR = Phi(0.3368112) = 0.6318704
     """
     dsr = deflated_sharpe_ratio(
-        sharpe=0.1, n_obs=253, n_trials=10, trial_sharpe_variance=0.0025,
-        skewness=0.0, kurtosis=3.0,
+        sharpe=0.1,
+        n_obs=253,
+        n_trials=10,
+        trial_sharpe_variance=0.0025,
+        skewness=0.0,
+        kurtosis=3.0,
     )
     assert dsr == pytest.approx(0.6318704, abs=1e-6)
 
@@ -60,8 +65,9 @@ def test_deflated_sharpe_is_a_probability(sharpe, n_obs, n_trials, variance, ske
 def test_compute_all_reports_dsr_as_probability_with_095_threshold():
     rng = np.random.default_rng(0)
     returns = rng.normal(0.002, 0.01, 756)
-    curve = pd.Series(100_000 * np.cumprod(1 + returns),
-                      index=pd.date_range("2018-01-01", periods=756, freq="B"))
+    curve = pd.Series(
+        100_000 * np.cumprod(1 + returns), index=pd.date_range("2018-01-01", periods=756, freq="B")
+    )
 
     results = PerformanceAnalytics(risk_free_rate=0.0).compute_all(curve)
 

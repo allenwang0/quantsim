@@ -5,42 +5,58 @@ Stooq (bulk historical). All data normalized to canonical schemas.
 Critical: stores only RAW (unadjusted) prices. Adjustment factors stored separately.
 """
 
-import time
 import logging
-import sqlite3
-from datetime import datetime, date, timedelta
-from typing import List, Optional, Dict
-import pandas as pd
-import numpy as np
+import time
+from datetime import date, datetime
+from typing import Dict, List, Optional
 
-from quantsim.core.database import db_conn, DB_PATH
-from quantsim.core.schemas import RawBar, AdjustmentFactor, MacroSeries
+import pandas as pd
+
+from quantsim.core.database import DB_PATH, db_conn
+from quantsim.core.schemas import RawBar
 
 logger = logging.getLogger(__name__)
 
 # FRED series used in this system
 FRED_SERIES = {
-    "VIXCLS":       "VIX daily close",
-    "DGS10":        "10-year Treasury yield",
-    "DGS2":         "2-year Treasury yield",
-    "DGS3MO":       "3-month Treasury yield (BSM risk-free rate)",
+    "VIXCLS": "VIX daily close",
+    "DGS10": "10-year Treasury yield",
+    "DGS2": "2-year Treasury yield",
+    "DGS3MO": "3-month Treasury yield (BSM risk-free rate)",
     "BAMLH0A0HYM2": "ICE BofA HY spread",
-    "BAMLC0A0CM":   "ICE BofA IG spread",
-    "FEDFUNDS":     "Federal funds rate",
-    "T10YIE":       "10-year breakeven inflation",
+    "BAMLC0A0CM": "ICE BofA IG spread",
+    "FEDFUNDS": "Federal funds rate",
+    "T10YIE": "10-year breakeven inflation",
 }
 
 # Default liquid options universe for backtesting
 LIQUID_OPTIONS_UNIVERSE = [
-    "SPY", "QQQ", "IWM", "GLD", "TLT", "EEM", "EFA",
-    "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA",
-    "JPM", "GS", "BAC", "XOM", "CVX",
+    "SPY",
+    "QQQ",
+    "IWM",
+    "GLD",
+    "TLT",
+    "EEM",
+    "EFA",
+    "AAPL",
+    "MSFT",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "NVDA",
+    "TSLA",
+    "JPM",
+    "GS",
+    "BAC",
+    "XOM",
+    "CVX",
 ]
 
 
 def _sleep_with_jitter(base: float = 0.5, jitter: float = 0.3):
     """Rate limit management: sleep with random jitter to avoid thundering herd."""
     import random
+
     time.sleep(base + random.uniform(0, jitter))
 
 
@@ -66,7 +82,7 @@ def fetch_equity_history(
     batch_size = 50
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i : i + batch_size]
-        logger.info(f"Downloading batch {i//batch_size + 1}: {batch[:5]}...")
+        logger.info(f"Downloading batch {i // batch_size + 1}: {batch[:5]}...")
 
         try:
             # auto_adjust=False gives us raw prices + explicit Adj Close
@@ -108,7 +124,9 @@ def fetch_equity_history(
 def _store_symbol_data(symbol: str, data: pd.DataFrame, db_path: str) -> int:
     """Extract one symbol from multi-ticker download and store to DB."""
     try:
-        sym_data = data.xs(symbol, axis=1, level=1) if symbol in data.columns.get_level_values(1) else data
+        sym_data = (
+            data.xs(symbol, axis=1, level=1) if symbol in data.columns.get_level_values(1) else data
+        )
     except Exception:
         return 0
 
@@ -135,7 +153,7 @@ def _store_symbol_data(symbol: str, data: pd.DataFrame, db_path: str) -> int:
                 # Validate bar quality
                 raw_bar = RawBar(
                     asset_id=symbol,
-                    timestamp=ts.to_pydatetime() if hasattr(ts, 'to_pydatetime') else ts,
+                    timestamp=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
                     open=float(row["Open"]),
                     high=float(row["High"]),
                     low=float(row["Low"]),
@@ -154,9 +172,17 @@ def _store_symbol_data(symbol: str, data: pd.DataFrame, db_path: str) -> int:
                     """INSERT OR REPLACE INTO raw_bars
                        (asset_id, timestamp, open, high, low, close, volume, exchange, source)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (symbol, ts_epoch, raw_bar.open, raw_bar.high,
-                     raw_bar.low, raw_bar.close, raw_bar.volume,
-                     raw_bar.exchange, raw_bar.source),
+                    (
+                        symbol,
+                        ts_epoch,
+                        raw_bar.open,
+                        raw_bar.high,
+                        raw_bar.low,
+                        raw_bar.close,
+                        raw_bar.volume,
+                        raw_bar.exchange,
+                        raw_bar.source,
+                    ),
                 )
 
                 eff_date = int(raw_bar.timestamp.timestamp())
@@ -213,17 +239,27 @@ def get_bars(
 
     df = pd.DataFrame(
         rows,
-        columns=["asset_id", "timestamp", "open", "high", "low", "close",
-                 "volume", "source", "split_factor", "div_adjustment"],
+        columns=[
+            "asset_id",
+            "timestamp",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "source",
+            "split_factor",
+            "div_adjustment",
+        ],
     )
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True)
     df.set_index("timestamp", inplace=True)
 
     if adjusted:
         df["adj_close"] = df["close"] * df["split_factor"] + df["div_adjustment"]
-        df["adj_open"]  = df["open"]  * df["split_factor"]
-        df["adj_high"]  = df["high"]  * df["split_factor"]
-        df["adj_low"]   = df["low"]   * df["split_factor"]
+        df["adj_open"] = df["open"] * df["split_factor"]
+        df["adj_high"] = df["high"] * df["split_factor"]
+        df["adj_low"] = df["low"] * df["split_factor"]
     else:
         df["adj_close"] = df["close"]
 
@@ -268,8 +304,17 @@ def get_latest_bars_as_of(
 
     df = pd.DataFrame(
         rows,
-        columns=["asset_id", "timestamp", "open", "high", "low", "close",
-                 "volume", "split_factor", "div_adjustment"],
+        columns=[
+            "asset_id",
+            "timestamp",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "split_factor",
+            "div_adjustment",
+        ],
     )
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True)
     df.set_index("timestamp", inplace=True)
@@ -277,9 +322,9 @@ def get_latest_bars_as_of(
 
     if adjusted:
         df["adj_close"] = df["close"] * df["split_factor"] + df["div_adjustment"]
-        df["adj_open"]  = df["open"]  * df["split_factor"]
-        df["adj_high"]  = df["high"]  * df["split_factor"]
-        df["adj_low"]   = df["low"]   * df["split_factor"]
+        df["adj_open"] = df["open"] * df["split_factor"]
+        df["adj_high"] = df["high"] * df["split_factor"]
+        df["adj_low"] = df["low"] * df["split_factor"]
     else:
         df["adj_close"] = df["close"]
 
@@ -317,8 +362,10 @@ def fetch_fred_series(
     (FRED observations include release date metadata when using realtime_start).
     """
     try:
-        from fredapi import Fred
         import os
+
+        from fredapi import Fred
+
         fred_key = os.environ.get("FRED_API_KEY", "")
         fred = Fred(api_key=fred_key) if fred_key else Fred()
     except Exception as e:
@@ -337,7 +384,9 @@ def fetch_fred_series(
                 for obs_date, value in s.items():
                     if pd.isna(value):
                         continue
-                    obs_dt = obs_date.to_pydatetime() if hasattr(obs_date, 'to_pydatetime') else obs_date
+                    obs_dt = (
+                        obs_date.to_pydatetime() if hasattr(obs_date, "to_pydatetime") else obs_date
+                    )
                     release_epoch = int(obs_dt.timestamp())
                     conn.execute(
                         """INSERT OR REPLACE INTO macro_series
@@ -359,6 +408,7 @@ def fetch_fred_series(
 def get_trading_calendar(start: str = "2000-01-01", end: Optional[str] = None) -> pd.DatetimeIndex:
     """Returns NYSE trading days as a DatetimeIndex (UTC midnight)."""
     import pandas_market_calendars as mcal
+
     nyse = mcal.get_calendar("NYSE")
     if end is None:
         end = datetime.utcnow().strftime("%Y-%m-%d")
@@ -377,16 +427,85 @@ def get_universe(
     """
     # S&P 500 large-cap core universe: liquid, minimal survivorship bias concerns
     CORE_UNIVERSE = [
-        "SPY", "QQQ", "IWM", "GLD", "TLT", "EEM", "EFA", "AGG", "BIL",
-        "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "BRK-B",
-        "JPM", "JNJ", "V", "PG", "UNH", "HD", "MA", "DIS", "NFLX",
-        "PYPL", "ADBE", "CRM", "INTC", "AMD", "QCOM", "TXN", "MU",
-        "GS", "BAC", "WFC", "C", "MS", "AXP", "BLK", "SCHW",
-        "XOM", "CVX", "COP", "SLB", "OXY",
-        "JNJ", "PFE", "MRK", "ABBV", "BMY", "AMGN", "GILD",
-        "KO", "PEP", "MCD", "SBUX", "NKE", "WMT", "COST", "TGT",
-        "BA", "CAT", "GE", "MMM", "HON", "LMT", "RTX", "NOC",
-        "NEE", "DUK", "SO", "D", "AEP",
-        "AMT", "PLD", "EQIX", "SPG", "O",
+        "SPY",
+        "QQQ",
+        "IWM",
+        "GLD",
+        "TLT",
+        "EEM",
+        "EFA",
+        "AGG",
+        "BIL",
+        "AAPL",
+        "MSFT",
+        "AMZN",
+        "GOOGL",
+        "META",
+        "NVDA",
+        "TSLA",
+        "BRK-B",
+        "JPM",
+        "JNJ",
+        "V",
+        "PG",
+        "UNH",
+        "HD",
+        "MA",
+        "DIS",
+        "NFLX",
+        "PYPL",
+        "ADBE",
+        "CRM",
+        "INTC",
+        "AMD",
+        "QCOM",
+        "TXN",
+        "MU",
+        "GS",
+        "BAC",
+        "WFC",
+        "C",
+        "MS",
+        "AXP",
+        "BLK",
+        "SCHW",
+        "XOM",
+        "CVX",
+        "COP",
+        "SLB",
+        "OXY",
+        "JNJ",
+        "PFE",
+        "MRK",
+        "ABBV",
+        "BMY",
+        "AMGN",
+        "GILD",
+        "KO",
+        "PEP",
+        "MCD",
+        "SBUX",
+        "NKE",
+        "WMT",
+        "COST",
+        "TGT",
+        "BA",
+        "CAT",
+        "GE",
+        "MMM",
+        "HON",
+        "LMT",
+        "RTX",
+        "NOC",
+        "NEE",
+        "DUK",
+        "SO",
+        "D",
+        "AEP",
+        "AMT",
+        "PLD",
+        "EQIX",
+        "SPG",
+        "O",
     ]
     return list(dict.fromkeys(CORE_UNIVERSE))  # deduplicate preserving order

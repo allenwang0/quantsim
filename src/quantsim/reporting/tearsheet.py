@@ -25,11 +25,13 @@ Usage:
 """
 
 from __future__ import annotations
-import logging
+
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Dict, Optional
+
 import numpy as np
 import pandas as pd
 
@@ -38,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 def _safe_json(obj) -> str:
     """JSON-serialize an object, handling datetime and numpy types."""
+
     def default(o):
         if isinstance(o, (datetime,)):
             return o.isoformat()
@@ -50,6 +53,7 @@ def _safe_json(obj) -> str:
         if isinstance(o, pd.Timestamp):
             return o.isoformat()
         return str(o)
+
     return json.dumps(obj, default=default)
 
 
@@ -79,8 +83,8 @@ def generate_tearsheet(
     Returns:
         HTML string
     """
-    from quantsim.reporting.analytics import PerformanceAnalytics
     from quantsim.reporting.advanced import AdvancedAnalytics
+    from quantsim.reporting.analytics import PerformanceAnalytics
 
     analytics = PerformanceAnalytics()
     advanced = AdvancedAnalytics()
@@ -132,8 +136,9 @@ def generate_tearsheet(
     # Rolling Sharpe
     rs_window = min(252, len(daily_returns) // 2)
     rolling_sr = (
-        daily_returns.rolling(rs_window).mean() /
-        daily_returns.rolling(rs_window).std() * np.sqrt(252)
+        daily_returns.rolling(rs_window).mean()
+        / daily_returns.rolling(rs_window).std()
+        * np.sqrt(252)
     ).dropna()
     rs_dates = [str(d) for d in rolling_sr.index]
     rs_values = [round(float(v), 3) for v in rolling_sr.values]
@@ -141,25 +146,39 @@ def generate_tearsheet(
     # Trade log
     trade_rows = []
     if trades_df is not None and not trades_df.empty:
-        closed = trades_df[trades_df.get("realized_pnl", pd.Series()).notna()].copy() \
-            if "realized_pnl" in trades_df.columns else trades_df
+        closed = (
+            trades_df[trades_df.get("realized_pnl", pd.Series()).notna()].copy()
+            if "realized_pnl" in trades_df.columns
+            else trades_df
+        )
         for _, row in closed.head(200).iterrows():
             pnl = row.get("realized_pnl", 0)
-            trade_rows.append({
-                "symbol": row.get("asset_id", ""),
-                "direction": row.get("direction", ""),
-                "entry": f"${row.get('entry_price', 0):.2f}",
-                "exit": f"${row.get('exit_price', 0):.2f}" if pd.notna(row.get("exit_price")) else "Open",
-                "pnl": f"${pnl:+,.0f}" if pd.notna(pnl) else "Open",
-                "pnl_num": float(pnl) if pd.notna(pnl) else 0,
-                "strategy": row.get("strategy_id", ""),
-                "bars": int(row.get("holding_bars", 0)) if pd.notna(row.get("holding_bars")) else 0,
-            })
+            trade_rows.append(
+                {
+                    "symbol": row.get("asset_id", ""),
+                    "direction": row.get("direction", ""),
+                    "entry": f"${row.get('entry_price', 0):.2f}",
+                    "exit": f"${row.get('exit_price', 0):.2f}"
+                    if pd.notna(row.get("exit_price"))
+                    else "Open",
+                    "pnl": f"${pnl:+,.0f}" if pd.notna(pnl) else "Open",
+                    "pnl_num": float(pnl) if pd.notna(pnl) else 0,
+                    "strategy": row.get("strategy_id", ""),
+                    "bars": int(row.get("holding_bars", 0))
+                    if pd.notna(row.get("holding_bars"))
+                    else 0,
+                }
+            )
 
     # Format metrics for display
-    def fmt_pct(v, decimals=2): return f"{v:.{decimals}%}" if v is not None else "N/A"
-    def fmt_f(v, d=3): return f"{v:.{d}f}" if v is not None else "N/A"
-    def fmt_dollar(v): return f"${v:,.0f}" if v is not None else "N/A"
+    def fmt_pct(v, decimals=2):
+        return f"{v:.{decimals}%}" if v is not None else "N/A"
+
+    def fmt_f(v, d=3):
+        return f"{v:.{d}f}" if v is not None else "N/A"
+
+    def fmt_dollar(v):
+        return f"${v:,.0f}" if v is not None else "N/A"
 
     m = metrics
     verdict_color = "#00e676" if m.get("deflated_sharpe_ratio", 0) > 0.95 else "#ff3d6b"
@@ -174,14 +193,15 @@ def generate_tearsheet(
     # ── HTML Template ──────────────────────────────────────────────────────────
     trade_rows_html = "".join(
         f"""<tr>
-      <td>{r['symbol']}</td>
-      <td>{r['direction']}</td>
-      <td>{r['entry']}</td>
-      <td>{r['exit']}</td>
-      <td class="{'pos' if r['pnl_num'] >= 0 else 'neg'}">{r['pnl']}</td>
-      <td style="color:#5a5a7a">{r['strategy']}</td>
-      <td>{r['bars']}</td>
-    </tr>""" for r in trade_rows[:100]
+      <td>{r["symbol"]}</td>
+      <td>{r["direction"]}</td>
+      <td>{r["entry"]}</td>
+      <td>{r["exit"]}</td>
+      <td class="{"pos" if r["pnl_num"] >= 0 else "neg"}">{r["pnl"]}</td>
+      <td style="color:#5a5a7a">{r["strategy"]}</td>
+      <td>{r["bars"]}</td>
+    </tr>"""
+        for r in trade_rows[:100]
     )
 
     html = f"""<!DOCTYPE html>
@@ -218,7 +238,9 @@ def generate_tearsheet(
   tr:hover td{{background:rgba(255,255,255,0.02);}}
   .verdict-box{{background:#18181f;border:1px solid {verdict_color}33;border-radius:8px;
                 padding:1.2rem 1.5rem;margin-bottom:2rem;}}
-  .verdict-title{{font-family:'Syne',sans-serif;font-size:1rem;color:{verdict_color};font-weight:700;}}
+  .verdict-title{{font-family:'Syne',sans-serif;font-size:1rem;color:{
+        verdict_color
+    };font-weight:700;}}
   .verdict-body{{color:#5a5a7a;font-size:0.75rem;margin-top:0.5rem;line-height:1.6;}}
   .wfo-box{{background:#18181f;border:1px solid #252535;border-radius:8px;padding:1.2rem 1.5rem;margin-bottom:1rem;}}
   .footer{{padding:1.5rem 3rem;border-top:1px solid #252535;color:#5a5a7a;font-size:0.65rem;text-align:center;}}
@@ -238,12 +260,16 @@ def generate_tearsheet(
 <div class="verdict-box">
   <div class="verdict-title">{verdict_text}</div>
   <div class="verdict-body">
-    Sharpe: {fmt_f(m.get('sharpe_ratio'), 3)} &nbsp;|&nbsp;
-    Deflated SR: {fmt_f(m.get('deflated_sharpe_ratio'), 3)} &nbsp;|&nbsp;
+    Sharpe: {fmt_f(m.get("sharpe_ratio"), 3)} &nbsp;|&nbsp;
+    Deflated SR: {fmt_f(m.get("deflated_sharpe_ratio"), 3)} &nbsp;|&nbsp;
     95% CI: {ci_text} &nbsp;|&nbsp;
-    Max DD: {fmt_pct(m.get('max_drawdown'))} &nbsp;|&nbsp;
-    CAGR: {fmt_pct(m.get('cagr'))}
-    {"<br>⚠ Insufficient sample: Sharpe unreliable with < 30 trades." if m.get("insufficient_sample_warning") else ""}
+    Max DD: {fmt_pct(m.get("max_drawdown"))} &nbsp;|&nbsp;
+    CAGR: {fmt_pct(m.get("cagr"))}
+    {
+        "<br>⚠ Insufficient sample: Sharpe unreliable with < 30 trades."
+        if m.get("insufficient_sample_warning")
+        else ""
+    }
   </div>
 </div>
 
@@ -252,49 +278,81 @@ def generate_tearsheet(
   <div class="sh">Key Performance Metrics</div>
   <div class="metrics-grid">
     <div class="mc"><div class="ml">Total Return</div>
-      <div class="mv {'pos' if (m.get('total_return',0) or 0) >= 0 else 'neg'}">{fmt_pct(m.get('total_return'))}</div></div>
+      <div class="mv {"pos" if (m.get("total_return", 0) or 0) >= 0 else "neg"}">{
+        fmt_pct(m.get("total_return"))
+    }</div></div>
     <div class="mc"><div class="ml">CAGR</div>
-      <div class="mv {'pos' if (m.get('cagr',0) or 0) >= 0 else 'neg'}">{fmt_pct(m.get('cagr'))}</div>
-      <div class="ms">{m.get('n_years', 0):.1f} years</div></div>
+      <div class="mv {"pos" if (m.get("cagr", 0) or 0) >= 0 else "neg"}">{
+        fmt_pct(m.get("cagr"))
+    }</div>
+      <div class="ms">{m.get("n_years", 0):.1f} years</div></div>
     <div class="mc"><div class="ml">Sharpe Ratio</div>
-      <div class="mv {'pos' if (m.get('sharpe_ratio',0) or 0) >= 0.5 else 'neg'}">{fmt_f(m.get('sharpe_ratio'))}</div></div>
+      <div class="mv {"pos" if (m.get("sharpe_ratio", 0) or 0) >= 0.5 else "neg"}">{
+        fmt_f(m.get("sharpe_ratio"))
+    }</div></div>
     <div class="mc"><div class="ml">Deflated SR</div>
-      <div class="mv {'pos' if (m.get('deflated_sharpe_ratio',0) or 0) > 0.95 else 'neg'}">{fmt_f(m.get('deflated_sharpe_ratio'))}</div>
+      <div class="mv {"pos" if (m.get("deflated_sharpe_ratio", 0) or 0) > 0.95 else "neg"}">{
+        fmt_f(m.get("deflated_sharpe_ratio"))
+    }</div>
       <div class="ms">corrected for {n_strategies_tested} configs</div></div>
     <div class="mc"><div class="ml">Sortino Ratio</div>
-      <div class="mv">{fmt_f(m.get('sortino_ratio'))}</div></div>
+      <div class="mv">{fmt_f(m.get("sortino_ratio"))}</div></div>
     <div class="mc"><div class="ml">Calmar Ratio</div>
-      <div class="mv {'pos' if (m.get('calmar_ratio',0) or 0) >= 1 else 'neg'}">{fmt_f(m.get('calmar_ratio'))}</div></div>
+      <div class="mv {"pos" if (m.get("calmar_ratio", 0) or 0) >= 1 else "neg"}">{
+        fmt_f(m.get("calmar_ratio"))
+    }</div></div>
     <div class="mc"><div class="ml">Max Drawdown</div>
-      <div class="mv neg">{fmt_pct(m.get('max_drawdown'))}</div>
-      <div class="ms">{m.get('max_drawdown_duration_days', 0)} days</div></div>
+      <div class="mv neg">{fmt_pct(m.get("max_drawdown"))}</div>
+      <div class="ms">{m.get("max_drawdown_duration_days", 0)} days</div></div>
     <div class="mc"><div class="ml">Annual Vol</div>
-      <div class="mv">{fmt_pct(m.get('annual_volatility'))}</div></div>
-    {"<div class='mc'><div class='ml'>Alpha (annual)</div><div class='mv'>" + fmt_pct(m.get('alpha_annual')) + "</div></div>" if 'alpha_annual' in m else ""}
-    {"<div class='mc'><div class='ml'>Beta</div><div class='mv'>" + fmt_f(m.get('beta'), 3) + "</div></div>" if 'beta' in m else ""}
-    {"<div class='mc'><div class='ml'>Info Ratio</div><div class='mv'>" + fmt_f(m.get('information_ratio'), 3) + "</div></div>" if 'information_ratio' in m else ""}
+      <div class="mv">{fmt_pct(m.get("annual_volatility"))}</div></div>
+    {
+        "<div class='mc'><div class='ml'>Alpha (annual)</div><div class='mv'>"
+        + fmt_pct(m.get("alpha_annual"))
+        + "</div></div>"
+        if "alpha_annual" in m
+        else ""
+    }
+    {
+        "<div class='mc'><div class='ml'>Beta</div><div class='mv'>"
+        + fmt_f(m.get("beta"), 3)
+        + "</div></div>"
+        if "beta" in m
+        else ""
+    }
+    {
+        "<div class='mc'><div class='ml'>Info Ratio</div><div class='mv'>"
+        + fmt_f(m.get("information_ratio"), 3)
+        + "</div></div>"
+        if "information_ratio" in m
+        else ""
+    }
   </div>
 </div>
 
-{"" if not m.get('n_trades') else f'''
+{
+        ""
+        if not m.get("n_trades")
+        else f'''
 <div class="section">
   <div class="sh">Trade Statistics</div>
   <div class="metrics-grid">
     <div class="mc"><div class="ml">Total Trades</div><div class="mv">{m.get('n_trades', 0)}</div>
       {"<div class='ms' style='color:#ffd740'>⚠ <30 trades: Sharpe unreliable</div>" if m.get("insufficient_sample_warning") else ""}</div>
     <div class="mc"><div class="ml">Win Rate</div>
-      <div class="mv {'pos' if (m.get('win_rate',0) or 0) >= 0.5 else 'neg'}">{fmt_pct(m.get('win_rate'))}</div></div>
+      <div class="mv {'pos' if (m.get('win_rate', 0) or 0) >= 0.5 else 'neg'}">{fmt_pct(m.get('win_rate'))}</div></div>
     <div class="mc"><div class="ml">Profit Factor</div>
-      <div class="mv {'pos' if (m.get('profit_factor',0) or 0) >= 1.5 else 'neg'}">{fmt_f(m.get('profit_factor'), 2)}</div></div>
+      <div class="mv {'pos' if (m.get('profit_factor', 0) or 0) >= 1.5 else 'neg'}">{fmt_f(m.get('profit_factor'), 2)}</div></div>
     <div class="mc"><div class="ml">Expectancy</div>
-      <div class="mv {'pos' if (m.get('expectancy',0) or 0) >= 0 else 'neg'}">{fmt_dollar(m.get('expectancy'))}</div></div>
+      <div class="mv {'pos' if (m.get('expectancy', 0) or 0) >= 0 else 'neg'}">{fmt_dollar(m.get('expectancy'))}</div></div>
     <div class="mc"><div class="ml">Avg Win</div><div class="mv pos">{fmt_dollar(m.get('avg_win'))}</div></div>
     <div class="mc"><div class="ml">Avg Loss</div><div class="mv neg">{fmt_dollar(m.get('avg_loss'))}</div></div>
     <div class="mc"><div class="ml">Win/Loss Ratio</div><div class="mv">{fmt_f(m.get('avg_win_loss_ratio'), 2)}</div></div>
     <div class="mc"><div class="ml">Avg Hold (bars)</div><div class="mv">{fmt_f(m.get('avg_holding_bars'), 1)}</div></div>
   </div>
 </div>
-'''}
+'''
+    }
 
 <!-- Equity Curve -->
 <div class="section">
@@ -315,7 +373,8 @@ def generate_tearsheet(
   </div>
 </div>
 
-{f'''
+{
+        f'''
 <!-- WFO Results -->
 <div class="section">
   <div class="sh">Walk-Forward Optimization Results</div>
@@ -325,19 +384,23 @@ def generate_tearsheet(
         <th>Metric</th><th>Value</th>
       </tr>
       <tr><td>Windows Tested</td><td>{wfo_results.get("n_windows", "N/A")}</td></tr>
-      <tr><td>Avg OOS Sharpe</td><td class="{'pos' if wfo_results.get('avg_oos_sharpe',0) > 0 else 'neg'}">{wfo_results.get('avg_oos_sharpe', 0):.3f}</td></tr>
+      <tr><td>Avg OOS Sharpe</td><td class="{'pos' if wfo_results.get('avg_oos_sharpe', 0) > 0 else 'neg'}">{wfo_results.get('avg_oos_sharpe', 0):.3f}</td></tr>
       <tr><td>Avg IS Sharpe</td><td>{wfo_results.get('avg_is_sharpe', 0):.3f}</td></tr>
       <tr><td>IS→OOS Degradation</td><td class="neg">{wfo_results.get('sharpe_degradation', 0):.3f}</td></tr>
-      <tr><td>Deflated SR (corrected)</td><td class="{'pos' if wfo_results.get('deflated_sharpe_corrected',0) > 0.95 else 'neg'}">{wfo_results.get('deflated_sharpe_corrected', 0):.3f}</td></tr>
+      <tr><td>Deflated SR (corrected)</td><td class="{'pos' if wfo_results.get('deflated_sharpe_corrected', 0) > 0.95 else 'neg'}">{wfo_results.get('deflated_sharpe_corrected', 0):.3f}</td></tr>
       <tr><td>OOS Win Rate</td><td>{wfo_results.get('oos_win_rate', 0):.1%}</td></tr>
-      <tr><td>Verdict</td><td style="color:{'#00e676' if wfo_results.get('summary',{}).get('pass') else '#ff3d6b'}">{wfo_results.get("summary", {}).get("message", "N/A")}</td></tr>
+      <tr><td>Verdict</td><td style="color:{'#00e676' if wfo_results.get('summary', {}).get('pass') else '#ff3d6b'}">{wfo_results.get("summary", {}).get("message", "N/A")}</td></tr>
     </table>
   </div>
 </div>
-''' if wfo_results else ""}
+'''
+        if wfo_results
+        else ""
+    }
 
 <!-- Trade Log -->
-{f'''
+{
+        f'''
 <div class="section">
   <div class="sh">Recent Trades ({len(trade_rows)} shown)</div>
   <table>
@@ -345,7 +408,10 @@ def generate_tearsheet(
     {trade_rows_html}
   </table>
 </div>
-''' if trade_rows else ""}
+'''
+        if trade_rows
+        else ""
+    }
 
 </div><!-- /container -->
 

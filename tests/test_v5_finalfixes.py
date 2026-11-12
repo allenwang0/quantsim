@@ -8,20 +8,20 @@ Tests for this session's gap fixes:
 - Database concurrent safety
 """
 
-import sys, os
+import os
+from datetime import date, datetime, timedelta
 
-import pytest
-import tempfile
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta, date
-
+import pytest
 
 # ── OrderManager ──────────────────────────────────────────────────────────────
+
 
 class TestOrderManager:
     def make_bar(self, asset_id, price, high=None, low=None, dt=None):
         from quantsim.core.events import BarEvent
+
         return BarEvent(
             timestamp=dt or datetime(2022, 1, 3),
             asset_id=asset_id,
@@ -40,8 +40,9 @@ class TestOrderManager:
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
-        mgr.add_stop_loss("SPY", entry_price=400.0, strategy_id="sma",
-                          stop_pct=0.02, direction="LONG")
+        mgr.add_stop_loss(
+            "SPY", entry_price=400.0, strategy_id="sma", stop_pct=0.02, direction="LONG"
+        )
 
         # Bar where low goes below stop (400 * 0.98 = 392)
         bar = self.make_bar("SPY", price=391, low=389)
@@ -53,6 +54,7 @@ class TestOrderManager:
         event = eq.get()
         assert event.event_type == EventType.SIGNAL
         from quantsim.core.events import Direction
+
         assert event.direction == Direction.FLAT
 
     def test_stop_loss_does_not_trigger_above_price(self):
@@ -61,8 +63,9 @@ class TestOrderManager:
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
-        mgr.add_stop_loss("SPY", entry_price=400.0, strategy_id="sma",
-                          stop_pct=0.02, direction="LONG")
+        mgr.add_stop_loss(
+            "SPY", entry_price=400.0, strategy_id="sma", stop_pct=0.02, direction="LONG"
+        )
 
         # Bar above stop
         bar = self.make_bar("SPY", price=405, low=402)
@@ -73,12 +76,12 @@ class TestOrderManager:
     def test_take_profit_triggers_above_target(self):
         from quantsim.backtesting.order_manager import OrderManager
         from quantsim.core.event_queue import EventQueue
-        from quantsim.core.events import EventType
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
-        mgr.add_take_profit("SPY", entry_price=400.0, strategy_id="sma",
-                             target_pct=0.05, direction="LONG")
+        mgr.add_take_profit(
+            "SPY", entry_price=400.0, strategy_id="sma", target_pct=0.05, direction="LONG"
+        )
 
         # Bar where high goes above target (400 * 1.05 = 420)
         bar = self.make_bar("SPY", price=422, high=425)
@@ -91,8 +94,9 @@ class TestOrderManager:
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
-        mgr.add_trailing_stop("SPY", entry_price=400.0, strategy_id="sma",
-                               trail_pct=0.03, direction="LONG")
+        mgr.add_trailing_stop(
+            "SPY", entry_price=400.0, strategy_id="sma", trail_pct=0.03, direction="LONG"
+        )
 
         # Price rises to 420 — stop should follow to 420 * 0.97 = 407.4
         bar_up = self.make_bar("SPY", price=420, high=420, low=418)
@@ -108,8 +112,7 @@ class TestOrderManager:
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
-        mgr.add_bracket("SPY", entry_price=400.0, strategy_id="sma",
-                         stop_pct=0.02, target_pct=0.06)
+        mgr.add_bracket("SPY", entry_price=400.0, strategy_id="sma", stop_pct=0.02, target_pct=0.06)
 
         # Stop triggers
         bar = self.make_bar("SPY", price=391, low=389)
@@ -125,8 +128,14 @@ class TestOrderManager:
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
         atr = 5.0  # $5 ATR
-        mgr.add_atr_stop("SPY", entry_price=400.0, strategy_id="sma",
-                          current_atr=atr, multiple=2.0, direction="LONG")
+        mgr.add_atr_stop(
+            "SPY",
+            entry_price=400.0,
+            strategy_id="sma",
+            current_atr=atr,
+            multiple=2.0,
+            direction="LONG",
+        )
 
         stop = mgr._stops["SPY"]
         # Stop = 400 - 2 * 5 = 390
@@ -148,8 +157,9 @@ class TestOrderManager:
 
         eq = EventQueue()
         mgr = OrderManager(event_queue=eq)
-        mgr.add_stop_loss("SPY", entry_price=400.0, strategy_id="sma",
-                          stop_pct=0.02, direction="SHORT")
+        mgr.add_stop_loss(
+            "SPY", entry_price=400.0, strategy_id="sma", stop_pct=0.02, direction="SHORT"
+        )
 
         # Short position: stop above entry (400 * 1.02 = 408)
         bar = self.make_bar("SPY", price=410, high=412)
@@ -159,10 +169,11 @@ class TestOrderManager:
 
 # ── Portfolio Options Methods ─────────────────────────────────────────────────
 
+
 class TestPortfolioOptionsMethods:
     def test_update_greeks_on_position(self):
-        from quantsim.portfolio.portfolio import Portfolio, Position
         from quantsim.core.events import AssetType, FillEvent, OrderSide
+        from quantsim.portfolio.portfolio import Portfolio
 
         p = Portfolio(initial_capital=100_000, cash=100_000)
 
@@ -186,8 +197,7 @@ class TestPortfolioOptionsMethods:
         p.apply_fill(fill)
 
         # Update Greeks
-        p.update_greeks("SPY220121C00420000",
-                        delta=0.30, gamma=0.05, theta=-0.08, vega=0.12)
+        p.update_greeks("SPY220121C00420000", delta=0.30, gamma=0.05, theta=-0.08, vega=0.12)
 
         pos = p.positions.get("SPY220121C00420000")
         assert pos is not None
@@ -196,8 +206,8 @@ class TestPortfolioOptionsMethods:
         assert abs(pos.theta - (-0.08)) < 1e-6
 
     def test_expire_options_removes_position(self):
-        from quantsim.portfolio.portfolio import Portfolio
         from quantsim.core.events import AssetType, FillEvent, OrderSide
+        from quantsim.portfolio.portfolio import Portfolio
 
         p = Portfolio(initial_capital=100_000, cash=100_000)
 
@@ -225,8 +235,8 @@ class TestPortfolioOptionsMethods:
         assert "SPY220110C00430000" not in p.positions
 
     def test_expire_options_books_pnl(self):
-        from quantsim.portfolio.portfolio import Portfolio
         from quantsim.core.events import AssetType, FillEvent, OrderSide
+        from quantsim.portfolio.portfolio import Portfolio
 
         p = Portfolio(initial_capital=100_000, cash=100_000)
         # Buy an option at 5.0
@@ -260,14 +270,15 @@ class TestPortfolioOptionsMethods:
 
 # ── Strategy Health Monitor ───────────────────────────────────────────────────
 
+
 class TestStrategyHealthMonitor:
     def test_monitor_detects_drawdown_warning(self, tmp_path):
-        from quantsim.reporting.monitor import StrategyHealthMonitor
         from quantsim.portfolio.portfolio import Portfolio
-        from quantsim.core.events import AssetType, FillEvent, OrderSide
+        from quantsim.reporting.monitor import StrategyHealthMonitor
 
         db_path = str(tmp_path / "monitor_test.db")
         from quantsim.core.database_v2 import init_full_db
+
         init_full_db(db_path)
 
         monitor = StrategyHealthMonitor(
@@ -291,11 +302,12 @@ class TestStrategyHealthMonitor:
         assert any(a["severity"] in ("WARNING", "CRITICAL") for a in alerts)
 
     def test_monitor_no_false_alerts_on_healthy_portfolio(self, tmp_path):
-        from quantsim.reporting.monitor import StrategyHealthMonitor
         from quantsim.portfolio.portfolio import Portfolio
+        from quantsim.reporting.monitor import StrategyHealthMonitor
 
         db_path = str(tmp_path / "monitor_healthy.db")
         from quantsim.core.database_v2 import init_full_db
+
         init_full_db(db_path)
 
         monitor = StrategyHealthMonitor(db_path=db_path)
@@ -309,11 +321,12 @@ class TestStrategyHealthMonitor:
         assert len(dd_alerts) == 0
 
     def test_monitor_alert_deduplication(self, tmp_path):
-        from quantsim.reporting.monitor import StrategyHealthMonitor
         from quantsim.portfolio.portfolio import Portfolio
+        from quantsim.reporting.monitor import StrategyHealthMonitor
 
         db_path = str(tmp_path / "monitor_dedup.db")
         from quantsim.core.database_v2 import init_full_db
+
         init_full_db(db_path)
 
         monitor = StrategyHealthMonitor(db_path=db_path, max_dd_warn=-0.05)
@@ -330,6 +343,7 @@ class TestStrategyHealthMonitor:
 
 # ── HTML Tearsheet ─────────────────────────────────────────────────────────────
 
+
 class TestTearsheet:
     def make_equity(self, n=300, seed=42):
         np.random.seed(seed)
@@ -342,6 +356,7 @@ class TestTearsheet:
 
     def test_tearsheet_generates_html(self):
         from quantsim.reporting.tearsheet import generate_tearsheet
+
         equity = self.make_equity()
         html = generate_tearsheet(equity, strategy_name="Test SMA")
         assert isinstance(html, str)
@@ -352,6 +367,7 @@ class TestTearsheet:
 
     def test_tearsheet_includes_metrics(self):
         from quantsim.reporting.tearsheet import generate_tearsheet
+
         equity = self.make_equity()
         html = generate_tearsheet(equity, strategy_name="Test Strategy")
         # Key metric labels should appear
@@ -360,6 +376,7 @@ class TestTearsheet:
 
     def test_tearsheet_writes_file(self, tmp_path):
         from quantsim.reporting.tearsheet import generate_tearsheet
+
         equity = self.make_equity()
         output = str(tmp_path / "test_tearsheet.html")
         generate_tearsheet(equity, strategy_name="Test", output_path=output)
@@ -368,22 +385,29 @@ class TestTearsheet:
 
     def test_tearsheet_with_trades_and_benchmark(self):
         from quantsim.reporting.tearsheet import generate_tearsheet
+
         equity = self.make_equity()
         benchmark = self.make_equity(seed=99)
 
-        trades = pd.DataFrame([{
-            "asset_id": "SPY",
-            "direction": "LONG",
-            "entry_price": 400.0,
-            "exit_price": 420.0,
-            "realized_pnl": 2000.0,
-            "strategy_id": "sma",
-            "holding_bars": 21,
-        }])
+        trades = pd.DataFrame(
+            [
+                {
+                    "asset_id": "SPY",
+                    "direction": "LONG",
+                    "entry_price": 400.0,
+                    "exit_price": 420.0,
+                    "realized_pnl": 2000.0,
+                    "strategy_id": "sma",
+                    "holding_bars": 21,
+                }
+            ]
+        )
 
         html = generate_tearsheet(
-            equity, strategy_name="Full Test",
-            trades_df=trades, benchmark=benchmark,
+            equity,
+            strategy_name="Full Test",
+            trades_df=trades,
+            benchmark=benchmark,
         )
         assert "SPY" in html
         assert "Benchmark" in html
@@ -391,15 +415,18 @@ class TestTearsheet:
 
 # ── Pairs Trading in Registry ─────────────────────────────────────────────────
 
+
 class TestPairsInRegistry:
     def test_pairs_registered(self):
         from quantsim.strategies.registry import StrategyRegistry
+
         df = StrategyRegistry.list_all()
         assert "pairs" in df["name"].values
 
     def test_pairs_builds_correctly(self):
-        from quantsim.strategies.registry import StrategyRegistry
         from quantsim.core.event_queue import EventQueue
+        from quantsim.strategies.registry import StrategyRegistry
+
         eq = EventQueue()
         strat = StrategyRegistry.build(
             "pairs",
@@ -413,9 +440,11 @@ class TestPairsInRegistry:
 
 # ── Database Concurrent Safety ────────────────────────────────────────────────
 
+
 class TestDatabaseConcurrency:
     def test_wal_mode_enabled(self, tmp_path):
         from quantsim.core.database import get_connection, init_db
+
         db_path = str(tmp_path / "wal_test.db")
         init_db(db_path)
         conn = get_connection(db_path)
@@ -426,7 +455,9 @@ class TestDatabaseConcurrency:
     def test_concurrent_reads_while_writing(self, tmp_path):
         """WAL mode allows reads while a write transaction is in progress."""
         import threading
+
         from quantsim.core.database import get_connection, init_db
+
         db_path = str(tmp_path / "concurrent_test.db")
         init_db(db_path)
 
@@ -444,8 +475,12 @@ class TestDatabaseConcurrency:
             try:
                 conn = get_connection(db_path)
                 conn.execute("BEGIN")
-                conn.execute("INSERT INTO raw_bars (asset_id, timestamp, open, high, low, close, volume) VALUES ('TEST', 1000, 1,1,1,1,1)")
-                import time; time.sleep(0.05)
+                conn.execute(
+                    "INSERT INTO raw_bars (asset_id, timestamp, open, high, low, close, volume) VALUES ('TEST', 1000, 1,1,1,1,1)"
+                )
+                import time
+
+                time.sleep(0.05)
                 conn.execute("COMMIT")
                 conn.close()
             except Exception as e:
@@ -455,7 +490,9 @@ class TestDatabaseConcurrency:
         t_read = threading.Thread(target=reader)
 
         t_write.start()
-        import time; time.sleep(0.01)  # let writer start first
+        import time
+
+        time.sleep(0.01)  # let writer start first
         t_read.start()
 
         t_write.join(timeout=2)

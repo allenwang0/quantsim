@@ -15,23 +15,25 @@ Walk-forward training is enforced:
 """
 
 from __future__ import annotations
+
 import logging
 import uuid
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
 
-from quantsim.core.events import BarEvent, SignalEvent, Direction
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, Direction
 from quantsim.data.data_handler import DataHandler
-from quantsim.strategies.trend import Strategy
 from quantsim.strategies.ml_alpha import (
     MLAlphaStrategy as _MLCore,
-    compute_alpha_features,
-    compute_turbulence_index,
-    turbulence_regime_filter,
 )
+from quantsim.strategies.ml_alpha import (
+    compute_alpha_features,
+)
+from quantsim.strategies.trend import Strategy
 
 logger = logging.getLogger(__name__)
 
@@ -148,13 +150,15 @@ class MLCrossSectionalStrategy(Strategy):
 
         # Train or retrain
         should_train = (
-            not self._model_trained or
-            self._bars_processed % (self.retrain_months * 21) == 0
+            not self._model_trained or self._bars_processed % (self.retrain_months * 21) == 0
         )
 
         if should_train:
-            train_end = prices_df.index[-self._ml_core.val_bars - 1] \
-                if len(prices_df) > self._ml_core.val_bars else prices_df.index[-2]
+            train_end = (
+                prices_df.index[-self._ml_core.val_bars - 1]
+                if len(prices_df) > self._ml_core.val_bars
+                else prices_df.index[-2]
+            )
             train_start = prices_df.index[0]
 
             train_ic = self._ml_core.fit(features, prices_df, train_start, train_end)
@@ -227,14 +231,14 @@ class MLCrossSectionalStrategy(Strategy):
         """Emit FLAT for all currently open positions."""
         for asset, direction in self._current_signals.items():
             if direction != Direction.FLAT:
-                self._emit_signal(asset, Direction.FLAT, timestamp,
-                                  signal_type="ml_ic_flat")
+                self._emit_signal(asset, Direction.FLAT, timestamp, signal_type="ml_ic_flat")
                 self._current_signals[asset] = Direction.FLAT
 
     def _log_training_run(self, train_ic: float, n_samples: int) -> None:
         """Persist training run metadata to DB."""
         try:
             from quantsim.core.database_v2 import log_ml_run
+
             importances = {}
             if self._ml_core._model is not None:
                 imp = self._ml_core.feature_importances()
@@ -302,8 +306,7 @@ class TurbulenceFilteredStrategy(Strategy):
             prev = self._last_asset_prices[asset_id]
             if prev > 0:
                 ret = (event.adj_close - prev) / prev
-                if len(self._return_history) == 0 or \
-                   asset_id not in self._return_history[-1]:
+                if len(self._return_history) == 0 or asset_id not in self._return_history[-1]:
                     self._return_history.append({})
                 self._return_history[-1][asset_id] = ret
 
@@ -332,7 +335,7 @@ class TurbulenceFilteredStrategy(Strategy):
         if len(self._return_history) < self.lookback:
             return
 
-        recent = self._return_history[-self.lookback:]
+        recent = self._return_history[-self.lookback :]
         # Build return matrix: rows=dates, cols=assets
         all_assets = list(self.asset_ids)
         matrix = []

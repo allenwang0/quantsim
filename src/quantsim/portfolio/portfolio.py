@@ -5,15 +5,14 @@ Persisted to SQLite on every FillEvent.
 """
 
 from __future__ import annotations
+
 import json
 import logging
-import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
-import numpy as np
 
-from quantsim.core.events import FillEvent, OrderSide, AssetType
+from quantsim.core.events import AssetType, FillEvent, OrderSide
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 class Position:
     asset_id: str
     asset_type: AssetType
-    quantity: int                    # negative = short
+    quantity: int  # negative = short
     average_cost: float
     current_price: float
     entry_date: datetime
@@ -32,7 +31,7 @@ class Position:
     option_symbol: Optional[str] = None
     expiration: Optional[str] = None
     strike: Optional[float] = None
-    right: Optional[str] = None      # 'C' or 'P'
+    right: Optional[str] = None  # 'C' or 'P'
     # Greeks (updated on each bar)
     delta: float = 0.0
     gamma: float = 0.0
@@ -157,7 +156,7 @@ class Portfolio:
         self.update_peak()
         # Normalize timestamp: strip timezone for consistent equity history
         ts = self.timestamp
-        if hasattr(ts, 'replace') and hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
+        if hasattr(ts, "replace") and hasattr(ts, "tzinfo") and ts.tzinfo is not None:
             ts = ts.replace(tzinfo=None)
         self._equity_history.append((ts, self.total_equity))
 
@@ -199,9 +198,7 @@ class Portfolio:
         Update portfolio state from a fill. Handles both opening and closing positions.
         Computes realized P&L on closes.
         """
-        is_buy = fill.side in (
-            OrderSide.BUY, OrderSide.BUY_TO_OPEN, OrderSide.BUY_TO_CLOSE
-        )
+        is_buy = fill.side in (OrderSide.BUY, OrderSide.BUY_TO_OPEN, OrderSide.BUY_TO_CLOSE)
         qty_signed = fill.quantity if is_buy else -fill.quantity
         multiplier = 100 if fill.asset_type == AssetType.OPTION else 1
         cost = fill.fill_price * fill.quantity * multiplier
@@ -264,7 +261,9 @@ class Portfolio:
                 # Partial close - reduce position
                 close_qty = min(abs(qty_signed), abs(old_qty))
                 realized = (
-                    close_qty * (fill.fill_price - pos.average_cost) * multiplier
+                    close_qty
+                    * (fill.fill_price - pos.average_cost)
+                    * multiplier
                     * (1 if old_qty > 0 else -1)
                 )
                 pos.realized_pnl += realized
@@ -288,8 +287,9 @@ class Portfolio:
             self.timestamp = timestamp
         self.record_equity()
 
-    def update_greeks(self, asset_key: str, delta: float, gamma: float,
-                       theta: float, vega: float) -> None:
+    def update_greeks(
+        self, asset_key: str, delta: float, gamma: float, theta: float, vega: float
+    ) -> None:
         """Update Greeks for a specific options position.
         Called by the engine on each bar after repricing options.
         """
@@ -305,13 +305,14 @@ class Portfolio:
         Remove expired options positions and book P&L.
         Call this on each bar to handle options that expired worthless
         or were exercised/assigned.
-        
+
         Returns list of expired position asset_keys.
         """
         from datetime import date as date_type
+
         expired = []
         for asset_key, pos in list(self.positions.items()):
-            if pos.asset_type.value != 'OPTION':
+            if pos.asset_type.value != "OPTION":
                 continue
             if pos.expiration is None:
                 continue
@@ -320,18 +321,19 @@ class Portfolio:
             if isinstance(exp, str):
                 try:
                     from datetime import datetime
-                    exp = datetime.strptime(exp[:10], '%Y-%m-%d').date()
+
+                    exp = datetime.strptime(exp[:10], "%Y-%m-%d").date()
                 except Exception:
                     continue
-            
+
             # Get current date
-            if hasattr(as_of_date, 'date'):
+            if hasattr(as_of_date, "date"):
                 cur_date = as_of_date.date()
             elif isinstance(as_of_date, date_type):
                 cur_date = as_of_date
             else:
                 continue
-            
+
             if cur_date >= exp:
                 # Option expired: realize P&L
                 realized = pos.unrealized_pnl
@@ -344,6 +346,7 @@ class Portfolio:
         """Persist portfolio snapshot to SQLite."""
         try:
             from quantsim.core.database import db_conn
+
             snapshot = self.to_snapshot_dict()
             ts_epoch = int(self.timestamp.timestamp())
             with db_conn(db_path) as conn:
@@ -351,9 +354,14 @@ class Portfolio:
                     """INSERT INTO portfolio_snapshots
                        (timestamp, total_equity, cash, realized_pnl, unrealized_pnl, payload)
                        VALUES (?, ?, ?, ?, ?, ?)""",
-                    (ts_epoch, self.total_equity, self.cash,
-                     self.realized_pnl, self.unrealized_pnl,
-                     json.dumps(snapshot)),
+                    (
+                        ts_epoch,
+                        self.total_equity,
+                        self.cash,
+                        self.realized_pnl,
+                        self.unrealized_pnl,
+                        json.dumps(snapshot),
+                    ),
                 )
         except Exception as e:
             logger.error(f"Portfolio persist failed: {e}")

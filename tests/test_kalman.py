@@ -7,6 +7,7 @@ the strategy sees one bar per leg per date and must update the filter once
 per date, with both legs' prices from that date.
 Prices are seeded synthetic random walks.
 """
+
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -52,8 +53,16 @@ def run_pair(prices_a, prices_b):
         ts = start + timedelta(days=i)
         for asset, price in (("A", a), ("B", b)):
             handler.closes[asset] = price
-            event = BarEvent(timestamp=ts, asset_id=asset, open=price, high=price,
-                             low=price, close=price, adj_close=price, volume=1)
+            event = BarEvent(
+                timestamp=ts,
+                asset_id=asset,
+                open=price,
+                high=price,
+                low=price,
+                close=price,
+                adj_close=price,
+                volume=1,
+            )
             strategy.on_bar(event, handler)
         betas.append(strategy._kalman_beta)
     return strategy, updates, np.array(betas)

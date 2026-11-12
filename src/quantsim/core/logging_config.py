@@ -18,11 +18,11 @@ Usage:
     logger.info("Order submitted", extra={"order_id": "abc", "symbol": "SPY"})
 """
 
-import os
-import sys
 import json
 import logging
 import logging.handlers
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,10 +34,27 @@ class JSONFormatter(logging.Formatter):
     """
 
     RESERVED_ATTRS = {
-        "args", "created", "exc_info", "exc_text", "filename",
-        "funcName", "id", "levelname", "levelno", "lineno", "module",
-        "msecs", "message", "msg", "name", "pathname", "process",
-        "processName", "relativeCreated", "stack_info", "thread",
+        "args",
+        "created",
+        "exc_info",
+        "exc_text",
+        "filename",
+        "funcName",
+        "id",
+        "levelname",
+        "levelno",
+        "lineno",
+        "module",
+        "msecs",
+        "message",
+        "msg",
+        "name",
+        "pathname",
+        "process",
+        "processName",
+        "relativeCreated",
+        "stack_info",
+        "thread",
         "threadName",
     }
 
@@ -78,10 +95,10 @@ class ColoredFormatter(logging.Formatter):
     """
 
     COLORS = {
-        "DEBUG":    "\033[36m",    # cyan
-        "INFO":     "\033[32m",    # green
-        "WARNING":  "\033[33m",    # yellow
-        "ERROR":    "\033[31m",    # red
+        "DEBUG": "\033[36m",  # cyan
+        "INFO": "\033[32m",  # green
+        "WARNING": "\033[33m",  # yellow
+        "ERROR": "\033[31m",  # red
         "CRITICAL": "\033[1;31m",  # bold red
     }
     RESET = "\033[0m"
@@ -120,8 +137,11 @@ def setup_logging(
     """
     level = level or os.environ.get("QUANTSIM_LOG_LEVEL", "INFO").upper()
     log_file = log_file or os.environ.get("QUANTSIM_LOG_FILE", "")
-    json_mode = json_mode if json_mode is not None else \
-        os.environ.get("QUANTSIM_LOG_JSON", "false").lower() == "true"
+    json_mode = (
+        json_mode
+        if json_mode is not None
+        else os.environ.get("QUANTSIM_LOG_JSON", "false").lower() == "true"
+    )
 
     numeric_level = getattr(logging, level, logging.INFO)
 
@@ -153,8 +173,18 @@ def setup_logging(
         root.addHandler(file_handler)
 
     # Silence noisy third-party loggers
-    for noisy in ("yfinance", "urllib3", "requests", "websocket", "asyncio",
-                  "numba", "cvxpy", "arch", "matplotlib", "PIL"):
+    for noisy in (
+        "yfinance",
+        "urllib3",
+        "requests",
+        "websocket",
+        "asyncio",
+        "numba",
+        "cvxpy",
+        "arch",
+        "matplotlib",
+        "PIL",
+    ):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     logging.getLogger("quantsim").info(

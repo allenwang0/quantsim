@@ -8,14 +8,16 @@ Signals generated using data through T-1 execute at T+1's open.
 """
 
 from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
+
 import pandas as pd
 
 from quantsim.core.event_queue import EventQueue
-from quantsim.core.events import BarEvent, AssetType
+from quantsim.core.events import BarEvent
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +81,7 @@ class HistoricalDataHandler(DataHandler):
         db_path: Optional[str] = None,
     ):
         from quantsim.core.database import DB_PATH
-        from quantsim.data.ingestion import get_bars, get_trading_calendar, get_latest_macro_as_of
+        from quantsim.data.ingestion import get_bars, get_latest_macro_as_of, get_trading_calendar
 
         self._asset_ids = asset_ids
         self._start = start
@@ -108,8 +110,10 @@ class HistoricalDataHandler(DataHandler):
         self._trading_days = pd.DatetimeIndex(trading_days).normalize()
         self._current_index = 0
 
-        logger.info(f"DataHandler ready: {len(self._bar_cache)} assets, "
-                    f"{len(self._trading_days)} trading days")
+        logger.info(
+            f"DataHandler ready: {len(self._bar_cache)} assets, "
+            f"{len(self._trading_days)} trading days"
+        )
 
     @property
     def current_datetime(self) -> datetime:
@@ -179,7 +183,11 @@ class HistoricalDataHandler(DataHandler):
         current_ts = self.current_datetime
 
         # Strictly before current timestamp
-        ts_aware = pd.Timestamp(current_ts).tz_localize("UTC") if getattr(current_ts, "tzinfo", None) is None else pd.Timestamp(current_ts).tz_convert("UTC")
+        ts_aware = (
+            pd.Timestamp(current_ts).tz_localize("UTC")
+            if getattr(current_ts, "tzinfo", None) is None
+            else pd.Timestamp(current_ts).tz_convert("UTC")
+        )
         prior = df[df.index < ts_aware]
         if len(prior) == 0:
             return pd.DataFrame()
@@ -195,7 +203,11 @@ class HistoricalDataHandler(DataHandler):
         current_ts = self.current_datetime
 
         # Current bar: at or immediately before current timestamp
-        ts_aware2 = pd.Timestamp(current_ts).tz_localize("UTC") if getattr(current_ts, "tzinfo", None) is None else pd.Timestamp(current_ts).tz_convert("UTC")
+        ts_aware2 = (
+            pd.Timestamp(current_ts).tz_localize("UTC")
+            if getattr(current_ts, "tzinfo", None) is None
+            else pd.Timestamp(current_ts).tz_convert("UTC")
+        )
         at_or_before = df[df.index <= ts_aware2]
         if at_or_before.empty:
             return None

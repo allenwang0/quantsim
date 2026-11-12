@@ -7,6 +7,7 @@ the wanted direction changes, so trade counts and cost drag are real.
 Expected signals here are recomputed from each indicator's definition, not by
 calling the function under test. All prices are seeded synthetic walks.
 """
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -108,7 +109,9 @@ CASES = [
 ]
 
 
-@pytest.mark.parametrize("signal_fn,kwargs,expected_fn", CASES, ids=lambda c: getattr(c, "__name__", ""))
+@pytest.mark.parametrize(
+    "signal_fn,kwargs,expected_fn", CASES, ids=lambda c: getattr(c, "__name__", "")
+)
 def test_position_follows_raw_signal_by_exactly_one_bar(signal_fn, kwargs, expected_fn):
     prices = random_walk(600, n_assets=2, seed=11)
     raw = expected_fn(prices).fillna(0).to_numpy()

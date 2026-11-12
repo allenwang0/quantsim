@@ -9,27 +9,27 @@ Three test categories:
 Run with: pytest tests/test_engine.py -v
 """
 
-import sys
 import os
-
-import pytest
 import tempfile
-import sqlite3
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
+import pytest
 
-from quantsim.core.events import (
-    BarEvent, SignalEvent, OrderEvent, FillEvent,
-    Direction, OrderType, OrderSide, AssetType, EventType
-)
 from quantsim.core.event_queue import EventQueue
-from quantsim.portfolio.portfolio import Portfolio, Position
+from quantsim.core.events import (
+    AssetType,
+    BarEvent,
+    EventType,
+    FillEvent,
+    OrderSide,
+)
+from quantsim.portfolio.portfolio import Portfolio
 from quantsim.reporting.analytics import PerformanceAnalytics
 
-
 # ── Fixtures ───────────────────────────────────────────────────────────────────
+
 
 def make_bar(asset_id="SPY", price=100.0, volume=1_000_000, dt=None):
     dt = dt or datetime(2020, 1, 2)
@@ -62,6 +62,7 @@ def make_fill(asset_id="SPY", price=100.0, qty=10, side=OrderSide.BUY, strategy_
 
 # ── Unit Tests: EventQueue ─────────────────────────────────────────────────────
 
+
 class TestEventQueue:
     def test_fifo_same_timestamp_fill_before_bar(self):
         """FillEvents must process before BarEvents at same timestamp."""
@@ -76,8 +77,9 @@ class TestEventQueue:
         q.put(fill)
 
         first = q.get()
-        assert first.event_type == EventType.FILL, \
+        assert first.event_type == EventType.FILL, (
             "FillEvent must have higher priority than BarEvent at same timestamp"
+        )
 
     def test_chronological_ordering(self):
         """Events in different timestamps must come out chronologically."""
@@ -100,6 +102,7 @@ class TestEventQueue:
 
 
 # ── Unit Tests: Portfolio ──────────────────────────────────────────────────────
+
 
 class TestPortfolio:
     def test_initial_state(self):
@@ -139,10 +142,7 @@ class TestPortfolio:
 
     def test_drawdown_calculation(self):
         p = Portfolio(initial_capital=100_000, cash=100_000)
-        p._equity_history = [
-            (datetime(2020, 1, i), 100_000 + (i - 5) * 1000)
-            for i in range(1, 11)
-        ]
+        p._equity_history = [(datetime(2020, 1, i), 100_000 + (i - 5) * 1000) for i in range(1, 11)]
         p.peak_equity = max(e for _, e in p._equity_history)
         # Peak = 105,000, last = 105,000 → drawdown = 0
         p.timestamp = datetime(2020, 1, 10)
@@ -151,39 +151,53 @@ class TestPortfolio:
 
 # ── Unit Tests: RawBar Validation ─────────────────────────────────────────────
 
+
 class TestRawBar:
     def test_valid_bar(self):
         from quantsim.core.schemas import RawBar
+
         bar = RawBar(
             asset_id="AAPL",
             timestamp=datetime(2020, 1, 2),
-            open=150.0, high=155.0, low=149.0, close=153.0,
+            open=150.0,
+            high=155.0,
+            low=149.0,
+            close=153.0,
             volume=1_000_000,
         )
         assert bar.validate()
 
     def test_invalid_high_low(self):
         from quantsim.core.schemas import RawBar
+
         bar = RawBar(
             asset_id="AAPL",
             timestamp=datetime(2020, 1, 2),
-            open=150.0, high=148.0, low=149.0, close=147.0,  # high < low
+            open=150.0,
+            high=148.0,
+            low=149.0,
+            close=147.0,  # high < low
             volume=1_000_000,
         )
         assert not bar.validate()
 
     def test_negative_price(self):
         from quantsim.core.schemas import RawBar
+
         bar = RawBar(
             asset_id="AAPL",
             timestamp=datetime(2020, 1, 2),
-            open=-1.0, high=150.0, low=149.0, close=149.0,
+            open=-1.0,
+            high=150.0,
+            low=149.0,
+            close=149.0,
             volume=1_000_000,
         )
         assert not bar.validate()
 
 
 # ── Unit Tests: Performance Analytics ─────────────────────────────────────────
+
 
 class TestPerformanceAnalytics:
     def _make_equity_curve(self, n=500, annual_return=0.10, annual_vol=0.15):
@@ -201,8 +215,9 @@ class TestPerformanceAnalytics:
         curve = self._make_equity_curve(annual_return=0.12, annual_vol=0.15)
         results = analytics.compute_all(curve)
         # Sharpe for 12% return, 15% vol, 2% RF ≈ (12-2)/15 = 0.67
-        assert 0.3 < results["sharpe_ratio"] < 1.5, \
+        assert 0.3 < results["sharpe_ratio"] < 1.5, (
             f"Sharpe {results['sharpe_ratio']} out of expected range"
+        )
 
     def test_max_drawdown_negative(self):
         analytics = PerformanceAnalytics()
@@ -217,8 +232,9 @@ class TestPerformanceAnalytics:
         r1 = analytics.compute_all(curve, n_strategies_tested=1)
         r100 = analytics.compute_all(curve, n_strategies_tested=100)
 
-        assert r1["deflated_sharpe_ratio"] > r100["deflated_sharpe_ratio"], \
+        assert r1["deflated_sharpe_ratio"] > r100["deflated_sharpe_ratio"], (
             "Testing 100 strategies should lower DSR compared to testing 1"
+        )
 
     def test_cagr_approx(self):
         analytics = PerformanceAnalytics()
@@ -227,21 +243,23 @@ class TestPerformanceAnalytics:
         dates = pd.date_range("2020-01-01", periods=n, freq="B")
         equity = pd.Series(100_000 * (1.10 ** (np.arange(n) / 252)), index=dates)
         results = analytics.compute_all(equity)
-        assert abs(results["cagr"] - 0.10) < 0.01, \
-            f"CAGR {results['cagr']:.3f} should be ≈ 0.10"
+        assert abs(results["cagr"] - 0.10) < 0.01, f"CAGR {results['cagr']:.3f} should be ≈ 0.10"
 
 
 # ── Unit Tests: Slippage Models ────────────────────────────────────────────────
 
+
 class TestSlippageModels:
     def test_no_slippage_zero(self):
-        from quantsim.backtesting.execution import NoSlippage, AssetType
+        from quantsim.backtesting.execution import AssetType, NoSlippage
+
         model = NoSlippage()
         slip = model.compute_slippage(100.0, 1000, 5_000_000, 5_000_000, AssetType.EQUITY)
         assert slip == 0.0
 
     def test_volume_proportional_large_order(self):
-        from quantsim.backtesting.execution import VolumeProportionalSlippage, AssetType
+        from quantsim.backtesting.execution import AssetType, VolumeProportionalSlippage
+
         model = VolumeProportionalSlippage(k=0.1)
         # Order is 10% of ADV: slippage = 100 * 0.1 * sqrt(0.1) ≈ 3.16
         slip = model.compute_slippage(100.0, 100_000, 1_000_000, 1_000_000, AssetType.EQUITY)
@@ -249,7 +267,8 @@ class TestSlippageModels:
         assert slip < 100.0  # sanity: slippage < full price
 
     def test_small_order_small_slippage(self):
-        from quantsim.backtesting.execution import VolumeProportionalSlippage, AssetType
+        from quantsim.backtesting.execution import AssetType, VolumeProportionalSlippage
+
         model = VolumeProportionalSlippage(k=0.1)
         # Order is 0.01% of ADV: minimal slippage
         slip_small = model.compute_slippage(100.0, 100, 1_000_000, 1_000_000, AssetType.EQUITY)
@@ -258,6 +277,7 @@ class TestSlippageModels:
 
 
 # ── Integration Test: Full Event Loop ─────────────────────────────────────────
+
 
 class TestIntegrationEventLoop:
     """
@@ -269,16 +289,14 @@ class TestIntegrationEventLoop:
     def _make_synthetic_prices(self):
         """Returns dict of asset_id -> list of (datetime, price)."""
         import pandas as pd
+
         dates = pd.date_range("2022-01-03", periods=30, freq="B")
         spy_prices = [400.0 * (1 + 0.001 * i) for i in range(30)]
-        return {
-            "SPY": pd.Series(spy_prices, index=dates)
-        }
+        return {"SPY": pd.Series(spy_prices, index=dates)}
 
     def test_buy_and_hold_positive_pnl_in_uptrend(self):
         """In a linear uptrend, buy-and-hold should show positive P&L."""
         from quantsim.core.database import init_db
-        import tempfile, os
 
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test.db")
@@ -286,9 +304,10 @@ class TestIntegrationEventLoop:
             init_db(db_path)
 
             # Insert synthetic SPY data
-            from quantsim.core.database import db_conn
-            from datetime import datetime as dt
+
             import pandas as pd
+
+            from quantsim.core.database import db_conn
 
             dates = pd.date_range("2022-01-03", periods=60, freq="B")
             prices = [400.0 * (1 + 0.001 * i) for i in range(60)]
@@ -300,7 +319,7 @@ class TestIntegrationEventLoop:
                         """INSERT OR REPLACE INTO raw_bars
                            (asset_id, timestamp, open, high, low, close, volume, source)
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                        ("SPY", ts_epoch, p*0.999, p*1.005, p*0.995, p, 5_000_000, "test"),
+                        ("SPY", ts_epoch, p * 0.999, p * 1.005, p * 0.995, p, 5_000_000, "test"),
                     )
                     conn.execute(
                         """INSERT OR REPLACE INTO adjustment_factors
@@ -310,13 +329,14 @@ class TestIntegrationEventLoop:
                     )
 
             # Run engine with BuyAndHold
-            from quantsim.strategies.momentum_factor import BuyAndHold
             from quantsim.core.event_queue import EventQueue
+            from quantsim.strategies.momentum_factor import BuyAndHold
 
             eq = EventQueue()
             strategy = BuyAndHold(asset_ids=["SPY"], event_queue=eq)
 
             from quantsim.backtesting.engine import BacktestEngine
+
             engine = BacktestEngine(
                 strategies=[strategy],
                 start=datetime(2022, 1, 3),
@@ -334,9 +354,15 @@ class TestIntegrationEventLoop:
 
             # Simulate a buy at 400, then update to 440 (+10%)
             fill = FillEvent(
-                order_id="test", asset_id="SPY", asset_type=AssetType.EQUITY,
-                side=OrderSide.BUY, quantity=200, fill_price=400.0,
-                commission=0.0, slippage=0.0, strategy_id="test",
+                order_id="test",
+                asset_id="SPY",
+                asset_type=AssetType.EQUITY,
+                side=OrderSide.BUY,
+                quantity=200,
+                fill_price=400.0,
+                commission=0.0,
+                slippage=0.0,
+                strategy_id="test",
                 timestamp=datetime(2022, 1, 3),
             )
             portfolio.apply_fill(fill)
@@ -348,11 +374,12 @@ class TestIntegrationEventLoop:
 
 # ── Walk-Forward Validation Marker ────────────────────────────────────────────
 
+
 class TestWalkingSkeletonValidation:
     """
     Phase 0 validation: SPY buy-and-hold total return 2020-2023.
     Requires live data download. Marked with @pytest.mark.live to skip in CI.
-    
+
     Acceptance criterion: within 0.1% annually of published SPY total return.
     SPY total return 2020-01-02 to 2023-12-29 ≈ +69% (including dividends).
     """
@@ -363,7 +390,7 @@ class TestWalkingSkeletonValidation:
         WALKING SKELETON VALIDATION.
         If this test fails, look-ahead bias or adjustment factor errors are present.
         Do not proceed to Phase 2 until this passes.
-        
+
         Expected: SPY total return 2020-2023 ≈ 69% (with dividends).
         Acceptable range: [60%, 80%] (accounting for precise dates and commission assumptions).
         """

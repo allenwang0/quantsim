@@ -4,9 +4,12 @@ given signal confidence and portfolio state.
 """
 
 from __future__ import annotations
+
+from typing import Optional
+
 import numpy as np
 import pandas as pd
-from typing import Optional
+
 from quantsim.portfolio.portfolio import Portfolio
 
 
@@ -35,9 +38,14 @@ class FixedFractionalSizer(PositionSizer):
         self.fraction = fraction
         self.max_fraction = max_position_fraction
 
-    def size(self, portfolio: Portfolio, asset_id: str,
-             confidence: float = 1.0, price: float = 0.0,
-             vol_estimate: Optional[float] = None) -> int:
+    def size(
+        self,
+        portfolio: Portfolio,
+        asset_id: str,
+        confidence: float = 1.0,
+        price: float = 0.0,
+        vol_estimate: Optional[float] = None,
+    ) -> int:
         if price <= 0:
             return 0
         equity = portfolio.total_equity
@@ -50,7 +58,7 @@ class VolatilityTargetSizer(PositionSizer):
     """
     Position sized so that each position contributes equal risk (target_vol_contribution).
     position_size = (target_vol_contribution * equity) / (asset_vol * price)
-    
+
     This is the AQR volatility targeting approach.
     """
 
@@ -62,9 +70,14 @@ class VolatilityTargetSizer(PositionSizer):
         self.target_vol = target_vol_per_position
         self.max_fraction = max_position_fraction
 
-    def size(self, portfolio: Portfolio, asset_id: str,
-             confidence: float = 1.0, price: float = 0.0,
-             vol_estimate: Optional[float] = None) -> int:
+    def size(
+        self,
+        portfolio: Portfolio,
+        asset_id: str,
+        confidence: float = 1.0,
+        price: float = 0.0,
+        vol_estimate: Optional[float] = None,
+    ) -> int:
         if price <= 0 or not vol_estimate or vol_estimate <= 0:
             return 0
 
@@ -101,9 +114,14 @@ class KellySizer(PositionSizer):
         full_kelly = (b * p - q) / b
         self._f = max(0, full_kelly * kelly_fraction)
 
-    def size(self, portfolio: Portfolio, asset_id: str,
-             confidence: float = 1.0, price: float = 0.0,
-             vol_estimate: Optional[float] = None) -> int:
+    def size(
+        self,
+        portfolio: Portfolio,
+        asset_id: str,
+        confidence: float = 1.0,
+        price: float = 0.0,
+        vol_estimate: Optional[float] = None,
+    ) -> int:
         if price <= 0:
             return 0
         equity = portfolio.total_equity
@@ -122,9 +140,14 @@ class EqualWeightSizer(PositionSizer):
         self.n_positions = n_positions
         self.max_fraction = max_position_fraction
 
-    def size(self, portfolio: Portfolio, asset_id: str,
-             confidence: float = 1.0, price: float = 0.0,
-             vol_estimate: Optional[float] = None) -> int:
+    def size(
+        self,
+        portfolio: Portfolio,
+        asset_id: str,
+        confidence: float = 1.0,
+        price: float = 0.0,
+        vol_estimate: Optional[float] = None,
+    ) -> int:
         if price <= 0:
             return 0
         equity = portfolio.total_equity
@@ -167,6 +190,7 @@ class GARCHVolatilityTargetSizer(PositionSizer):
         self.max_fraction = max_position_fraction
         try:
             from quantsim.strategies.garch_vol import GARCHVolatilityAdapter
+
             self._adapter = GARCHVolatilityAdapter(
                 fit_window=fit_window,
                 vol_target=target_annual_vol,

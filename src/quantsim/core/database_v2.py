@@ -12,9 +12,7 @@ New tables:
 Migration: safe to run multiple times (IF NOT EXISTS everywhere).
 """
 
-import sqlite3
 import logging
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +147,7 @@ def migrate_v2(db_path: str) -> None:
     Safe to run on a fresh database or an existing one.
     """
     from quantsim.core.database import get_connection
+
     conn = get_connection(db_path)
     try:
         conn.executescript(V2_SCHEMA)
@@ -164,11 +163,13 @@ def migrate_v2(db_path: str) -> None:
 def init_full_db(db_path: str) -> None:
     """Initialize both v1 and v2 schemas."""
     from quantsim.core.database import init_db
+
     init_db(db_path)
     migrate_v2(db_path)
 
 
 # ── Database Helpers for New Tables ───────────────────────────────────────────
+
 
 def log_ml_run(
     db_path: str,
@@ -182,8 +183,11 @@ def log_ml_run(
     model_params: dict,
     feature_importances: dict = None,
 ) -> None:
-    import json, time
+    import json
+    import time
+
     from quantsim.core.database import db_conn
+
     try:
         with db_conn(db_path) as conn:
             conn.execute(
@@ -191,10 +195,18 @@ def log_ml_run(
                    (run_id, strategy_id, trained_at, train_start, train_end,
                     n_samples, train_ic, val_ic, model_params, feature_importances)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (run_id, strategy_id, int(time.time()), train_start, train_end,
-                 n_samples, train_ic, val_ic,
-                 json.dumps(model_params),
-                 json.dumps(feature_importances or {})),
+                (
+                    run_id,
+                    strategy_id,
+                    int(time.time()),
+                    train_start,
+                    train_end,
+                    n_samples,
+                    train_ic,
+                    val_ic,
+                    json.dumps(model_params),
+                    json.dumps(feature_importances or {}),
+                ),
             )
     except Exception as e:
         logger.error(f"log_ml_run failed: {e}")
@@ -209,8 +221,10 @@ def log_garch_state(
     current_forecast: float,
 ) -> None:
     import time
+
     from quantsim.core.database import db_conn
-    long_run_vol = (omega / (1 - alpha - beta)) ** 0.5 * (252 ** 0.5) if alpha + beta < 1 else 0.15
+
+    long_run_vol = (omega / (1 - alpha - beta)) ** 0.5 * (252**0.5) if alpha + beta < 1 else 0.15
     try:
         with db_conn(db_path) as conn:
             conn.execute(
@@ -229,6 +243,7 @@ def log_options_greeks(
     portfolio,
 ) -> None:
     from quantsim.core.database import db_conn
+
     try:
         with db_conn(db_path) as conn:
             conn.execute(
@@ -236,13 +251,14 @@ def log_options_greeks(
                    (timestamp, portfolio_delta, portfolio_gamma,
                     portfolio_theta, portfolio_vega, n_options_positions)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (timestamp,
-                 portfolio.portfolio_delta,
-                 portfolio.portfolio_gamma,
-                 portfolio.portfolio_theta,
-                 portfolio.portfolio_vega,
-                 sum(1 for p in portfolio.positions.values()
-                     if p.asset_type.value == "OPTION")),
+                (
+                    timestamp,
+                    portfolio.portfolio_delta,
+                    portfolio.portfolio_gamma,
+                    portfolio.portfolio_theta,
+                    portfolio.portfolio_vega,
+                    sum(1 for p in portfolio.positions.values() if p.asset_type.value == "OPTION"),
+                ),
             )
     except Exception as e:
         logger.error(f"log_options_greeks failed: {e}")
@@ -256,8 +272,11 @@ def log_wfo_result(
     best_params: dict,
     metrics: dict,
 ) -> None:
-    import json, time
+    import json
+    import time
+
     from quantsim.core.database import db_conn
+
     try:
         with db_conn(db_path) as conn:
             conn.execute(
@@ -267,18 +286,22 @@ def log_wfo_result(
                     best_params, is_sharpe, oos_sharpe, oos_return,
                     oos_max_dd, oos_calmar)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (result_id, strategy_id, int(time.time()),
-                 window.get("window_id", 0),
-                 int(window.get("train_start", pd.Timestamp("2010-01-01")).timestamp()),
-                 int(window.get("train_end", pd.Timestamp("2013-01-01")).timestamp()),
-                 int(window.get("test_start", pd.Timestamp("2013-01-01")).timestamp()),
-                 int(window.get("test_end", pd.Timestamp("2014-01-01")).timestamp()),
-                 json.dumps(best_params),
-                 metrics.get("train_best_sharpe", 0),
-                 metrics.get("oos_sharpe", 0),
-                 metrics.get("oos_return", 0),
-                 metrics.get("oos_max_dd", 0),
-                 metrics.get("oos_calmar", 0)),
+                (
+                    result_id,
+                    strategy_id,
+                    int(time.time()),
+                    window.get("window_id", 0),
+                    int(window.get("train_start", pd.Timestamp("2010-01-01")).timestamp()),
+                    int(window.get("train_end", pd.Timestamp("2013-01-01")).timestamp()),
+                    int(window.get("test_start", pd.Timestamp("2013-01-01")).timestamp()),
+                    int(window.get("test_end", pd.Timestamp("2014-01-01")).timestamp()),
+                    json.dumps(best_params),
+                    metrics.get("train_best_sharpe", 0),
+                    metrics.get("oos_sharpe", 0),
+                    metrics.get("oos_return", 0),
+                    metrics.get("oos_max_dd", 0),
+                    metrics.get("oos_calmar", 0),
+                ),
             )
     except Exception as e:
         logger.error(f"log_wfo_result failed: {e}")

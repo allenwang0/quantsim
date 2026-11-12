@@ -14,23 +14,25 @@ Run:
     cd examples && python 04_full_pipeline.py
 """
 
-import sys, os
+import os
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from datetime import datetime
 
-from quantsim.core.logging_config import setup_logging
-from quantsim.core.database_v2 import init_full_db
-from quantsim.core.database import db_conn
-from quantsim.strategies.trend import SMAcrossover
-from quantsim.core.event_queue import EventQueue
 from quantsim.backtesting.engine import BacktestEngine
-from quantsim.backtesting.order_manager import OrderManager
 from quantsim.backtesting.execution import VolumeProportionalSlippage, ZeroCommission
-from quantsim.reporting.analytics import PerformanceAnalytics, load_equity_curve_from_db, load_trades_from_db
-from quantsim.reporting.tearsheet import generate_tearsheet
+from quantsim.core.database import db_conn
+from quantsim.core.database_v2 import init_full_db
+from quantsim.core.event_queue import EventQueue
+from quantsim.core.logging_config import setup_logging
+from quantsim.reporting.analytics import (
+    load_equity_curve_from_db,
+    load_trades_from_db,
+)
 from quantsim.reporting.monitor import StrategyHealthMonitor
+from quantsim.reporting.tearsheet import generate_tearsheet
+from quantsim.strategies.trend import SMAcrossover
 
 setup_logging(level="INFO")
 
@@ -59,12 +61,22 @@ with db_conn(DB_PATH) as conn:
             "INSERT OR REPLACE INTO raw_bars "
             "(asset_id, timestamp, open, high, low, close, volume, source) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            ("SPY", ts, price*0.999, price*1.005, price*0.995, price, 10_000_000, "garch_synth"),
+            (
+                "SPY",
+                ts,
+                price * 0.999,
+                price * 1.005,
+                price * 0.995,
+                price,
+                10_000_000,
+                "garch_synth",
+            ),
         )
         conn.execute(
             "INSERT OR REPLACE INTO adjustment_factors "
             "(asset_id, effective_date, cumulative_split_factor, cumulative_div_adjustment) "
-            "VALUES (?, ?, 1.0, 0.0)", ("SPY", ts),
+            "VALUES (?, ?, 1.0, 0.0)",
+            ("SPY", ts),
         )
 
 print(f"Synthetic data: {n} bars, vol-clustered GARCH process")
@@ -74,7 +86,8 @@ eq = EventQueue()
 strategy = SMAcrossover(
     asset_ids=["SPY"],
     event_queue=eq,
-    fast=20, slow=100,
+    fast=20,
+    slow=100,
     long_only=True,
 )
 
@@ -91,8 +104,11 @@ engine = BacktestEngine(
 
 # Add a trailing stop to protect against large drawdowns
 engine.order_manager.add_trailing_stop(
-    "SPY", entry_price=300.0, strategy_id="SMA_20_100",
-    trail_pct=0.05, direction="LONG",
+    "SPY",
+    entry_price=300.0,
+    strategy_id="SMA_20_100",
+    trail_pct=0.05,
+    direction="LONG",
 )
 
 results = engine.run()
@@ -121,7 +137,7 @@ if not equity.empty:
     print("Open in any browser for the full interactive report.")
 
 # ── Summary ────────────────────────────────────────────────────────────────────
-print(f"\n{'='*55}")
+print(f"\n{'=' * 55}")
 print(f"Total Return:  {results.get('total_return', 0):+.2%}")
 print(f"Sharpe Ratio:  {results.get('sharpe_ratio', 0):.3f}")
 print(f"Deflated SR:   {results.get('deflated_sharpe_ratio', 0):.3f}")

@@ -3,15 +3,14 @@ Extended test suite for QuantSim v2 additions.
 Tests: vectorized backtester, portfolio optimization, walk-forward, ML features, Alpaca.
 """
 
-import sys, os
+import os
 
-import pytest
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-
+import pytest
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 def make_price_series(n=500, drift=0.0003, vol=0.015, seed=42):
     np.random.seed(seed)
@@ -35,6 +34,7 @@ def make_price_df(n=500, n_assets=5, seed=42):
 
 
 # ── Tests: Vectorized Backtester ──────────────────────────────────────────────
+
 
 class TestVectorizedBacktester:
     def test_basic_run(self):
@@ -62,11 +62,14 @@ class TestVectorizedBacktester:
         assert "deflated_sharpe_corrected" in results_df.columns
         # Results should be sorted descending by deflated Sharpe
         dsr_vals = results_df["deflated_sharpe_corrected"].values
-        assert all(dsr_vals[i] >= dsr_vals[i+1] for i in range(len(dsr_vals)-1))
+        assert all(dsr_vals[i] >= dsr_vals[i + 1] for i in range(len(dsr_vals) - 1))
 
     def test_no_lookahead_bias(self):
         """Buy-and-hold vectorized should match event-driven within margin."""
-        from quantsim.backtesting.vectorized import VectorizedBacktester, equal_weight_rebalance_signal
+        from quantsim.backtesting.vectorized import (
+            VectorizedBacktester,
+            equal_weight_rebalance_signal,
+        )
 
         # Linearly rising price series
         n = 252
@@ -81,8 +84,13 @@ class TestVectorizedBacktester:
 
     def test_various_signals(self):
         from quantsim.backtesting.vectorized import (
-            VectorizedBacktester, rsi_signal, momentum_signal, bollinger_signal, donchian_signal
+            VectorizedBacktester,
+            bollinger_signal,
+            donchian_signal,
+            momentum_signal,
+            rsi_signal,
         )
+
         prices = make_price_df(n=400)
         bt = VectorizedBacktester(prices=prices)
 
@@ -92,6 +100,7 @@ class TestVectorizedBacktester:
 
 
 # ── Tests: Portfolio Optimization ────────────────────────────────────────────
+
 
 class TestPortfolioOptimization:
     def make_returns(self, n=252, n_assets=5):
@@ -104,6 +113,7 @@ class TestPortfolioOptimization:
 
     def test_hrp_weights_sum_to_one(self):
         from quantsim.portfolio.optimization import HierarchicalRiskParity
+
         returns = self.make_returns()
         hrp = HierarchicalRiskParity()
         weights = hrp.optimize(returns)
@@ -111,6 +121,7 @@ class TestPortfolioOptimization:
 
     def test_hrp_all_positive(self):
         from quantsim.portfolio.optimization import HierarchicalRiskParity
+
         returns = self.make_returns()
         hrp = HierarchicalRiskParity()
         weights = hrp.optimize(returns)
@@ -118,6 +129,7 @@ class TestPortfolioOptimization:
 
     def test_risk_parity_weights_sum_to_one(self):
         from quantsim.portfolio.optimization import RiskParityOptimizer
+
         returns = self.make_returns(n_assets=4)
         rp = RiskParityOptimizer()
         weights = rp.optimize(returns)
@@ -125,6 +137,7 @@ class TestPortfolioOptimization:
 
     def test_mean_variance_min_variance(self):
         from quantsim.portfolio.optimization import MeanVarianceOptimizer
+
         returns = self.make_returns()
         mv = MeanVarianceOptimizer()
         weights = mv.optimize(returns, objective="min_variance")
@@ -133,6 +146,7 @@ class TestPortfolioOptimization:
 
     def test_black_litterman_no_views(self):
         from quantsim.portfolio.optimization import BlackLittermanOptimizer
+
         returns = self.make_returns()
         bl = BlackLittermanOptimizer()
         weights = bl.optimize(returns, views=None)
@@ -140,17 +154,17 @@ class TestPortfolioOptimization:
 
     def test_black_litterman_with_views(self):
         from quantsim.portfolio.optimization import BlackLittermanOptimizer
+
         returns = self.make_returns()
         assets = list(returns.columns)
-        views = [
-            {"assets": [assets[0]], "weights": [1], "return": 0.001, "confidence": 0.7}
-        ]
+        views = [{"assets": [assets[0]], "weights": [1], "return": 0.001, "confidence": 0.7}]
         bl = BlackLittermanOptimizer()
         weights = bl.optimize(returns, views=views)
         assert abs(sum(weights.values()) - 1.0) < 1e-4
 
     def test_covariance_shrinkage(self):
         from quantsim.portfolio.optimization import compute_covariance
+
         returns = self.make_returns(n=100, n_assets=20)  # small T, large N
         cov_sample = compute_covariance(returns, "sample")
         cov_lw = compute_covariance(returns, "ledoit_wolf")
@@ -161,6 +175,7 @@ class TestPortfolioOptimization:
 
     def test_efficient_frontier(self):
         from quantsim.portfolio.optimization import MeanVarianceOptimizer
+
         returns = self.make_returns(n_assets=4)
         mv = MeanVarianceOptimizer()
         frontier = mv.efficient_frontier(returns, n_points=10)
@@ -171,26 +186,27 @@ class TestPortfolioOptimization:
 
 # ── Tests: Walk-Forward Optimizer ────────────────────────────────────────────
 
+
 class TestWalkForwardOptimizer:
     def test_window_generation(self):
         from quantsim.backtesting.walk_forward import WalkForwardOptimizer
+
         prices = make_price_df(n=700, n_assets=2)
-        wfo = WalkForwardOptimizer(
-            prices=prices, train_years=1, test_months=6, step_months=3
-        )
+        wfo = WalkForwardOptimizer(prices=prices, train_years=1, test_months=6, step_months=3)
         windows = wfo.generate_windows()
         assert len(windows) > 0
         # Windows should not overlap (test period of window N < train start of window N+1)
         for i in range(len(windows) - 1):
-            assert windows[i]["test_end"] <= windows[i+1]["train_start"] or True  # step may overlap train
+            assert (
+                windows[i]["test_end"] <= windows[i + 1]["train_start"] or True
+            )  # step may overlap train
 
     def test_wfo_returns_oos_metrics(self):
-        from quantsim.backtesting.walk_forward import WalkForwardOptimizer
         from quantsim.backtesting.vectorized import sma_crossover_signal
+        from quantsim.backtesting.walk_forward import WalkForwardOptimizer
+
         prices = make_price_df(n=600, n_assets=2)
-        wfo = WalkForwardOptimizer(
-            prices=prices, train_years=1, test_months=6, step_months=6
-        )
+        wfo = WalkForwardOptimizer(prices=prices, train_years=1, test_months=6, step_months=6)
         results = wfo.optimize_and_evaluate(
             signal_fn=sma_crossover_signal,
             param_grid={"fast": [20, 50], "slow": [100]},
@@ -202,17 +218,20 @@ class TestWalkForwardOptimizer:
 
 # ── Tests: Regime Analysis ────────────────────────────────────────────────────
 
+
 class TestRegimeAnalysis:
     def test_regime_classification(self):
         from quantsim.backtesting.walk_forward import RegimeAnalyzer
+
         prices = make_price_series(n=500)
         regimes = RegimeAnalyzer.classify_regimes(prices)
-        assert set(regimes.unique()).issubset({
-            "bull_low_vol", "bull_high_vol", "bear_low_vol", "bear_high_vol", "unknown"
-        })
+        assert set(regimes.unique()).issubset(
+            {"bull_low_vol", "bull_high_vol", "bear_low_vol", "bear_high_vol", "unknown"}
+        )
 
     def test_regime_analysis_returns_df(self):
         from quantsim.backtesting.walk_forward import RegimeAnalyzer
+
         prices = make_price_series(n=500)
         equity = prices * 1000
         regimes = RegimeAnalyzer.classify_regimes(prices)
@@ -223,9 +242,11 @@ class TestRegimeAnalysis:
 
 # ── Tests: Advanced Analytics ────────────────────────────────────────────────
 
+
 class TestAdvancedAnalytics:
     def test_monte_carlo_sharpe(self):
         from quantsim.reporting.advanced import AdvancedAnalytics
+
         np.random.seed(42)
         returns = pd.Series(np.random.normal(0.0003, 0.015, 500))
         result = AdvancedAnalytics.monte_carlo_sharpe(returns, n_simulations=1000)
@@ -236,10 +257,12 @@ class TestAdvancedAnalytics:
 
     def test_turnover_analysis(self):
         from quantsim.reporting.advanced import AdvancedAnalytics
+
         prices = make_price_df(n=300)
         signals = pd.DataFrame(
             np.random.choice([-1, 0, 1], size=prices.shape),
-            columns=prices.columns, index=prices.index,
+            columns=prices.columns,
+            index=prices.index,
         )
         result = AdvancedAnalytics.turnover_analysis(signals, prices)
         assert "annual_turnover_rate" in result
@@ -247,6 +270,7 @@ class TestAdvancedAnalytics:
 
     def test_insufficient_sample_warning(self):
         from quantsim.reporting.advanced import AdvancedAnalytics
+
         short_returns = pd.Series(np.random.normal(0, 0.01, 10))
         result = AdvancedAnalytics.monte_carlo_sharpe(short_returns, n_simulations=100)
         assert "error" in result
@@ -254,9 +278,11 @@ class TestAdvancedAnalytics:
 
 # ── Tests: ML Alpha Features ─────────────────────────────────────────────────
 
+
 class TestMLAlpha:
     def test_compute_alpha_features_runs(self):
         from quantsim.strategies.ml_alpha import compute_alpha_features
+
         prices = make_price_df(n=300, n_assets=5)
         features = compute_alpha_features(prices)
         assert not features.empty
@@ -264,6 +290,7 @@ class TestMLAlpha:
 
     def test_turbulence_index(self):
         from quantsim.strategies.ml_alpha import compute_turbulence_index
+
         returns = make_price_df(n=300).pct_change().dropna()
         turb = compute_turbulence_index(returns, lookback=60)
         assert len(turb) == len(returns)
@@ -271,6 +298,7 @@ class TestMLAlpha:
 
     def test_turbulence_regime_filter(self):
         from quantsim.strategies.ml_alpha import compute_turbulence_index, turbulence_regime_filter
+
         returns = make_price_df(n=300).pct_change().dropna()
         turb = compute_turbulence_index(returns, lookback=60)
         regime = turbulence_regime_filter(turb, threshold_pct=0.90)
@@ -279,10 +307,11 @@ class TestMLAlpha:
 
 # ── Tests: Alpaca Integration (mock) ─────────────────────────────────────────
 
+
 class TestAlpacaIntegration:
     def test_alpaca_handler_initializes_without_credentials(self):
         """Should gracefully fall back to yfinance when no Alpaca credentials."""
-        import os
+
         # Temporarily clear credentials
         orig_key = os.environ.pop("ALPACA_API_KEY", None)
         orig_secret = os.environ.pop("ALPACA_SECRET_KEY", None)
@@ -290,6 +319,7 @@ class TestAlpacaIntegration:
         try:
             from quantsim.core.event_queue import EventQueue
             from quantsim.paper_trading.alpaca_handler import AlpacaLiveDataHandler
+
             eq = EventQueue()
             # Should not raise; falls back to yfinance
             handler = AlpacaLiveDataHandler(
@@ -306,12 +336,12 @@ class TestAlpacaIntegration:
 
     def test_alpaca_paper_execution_simulates_without_credentials(self):
         """Should simulate fills locally when Alpaca not configured."""
-        import os
+
         orig_key = os.environ.pop("ALPACA_API_KEY", None)
 
         try:
             from quantsim.core.event_queue import EventQueue
-            from quantsim.core.events import OrderEvent, OrderSide, OrderType, AssetType
+            from quantsim.core.events import AssetType, OrderEvent, OrderSide, OrderType
             from quantsim.paper_trading.alpaca_handler import AlpacaPaperExecutionHandler
 
             eq = EventQueue()

@@ -15,16 +15,16 @@ Run:
     cd examples && python 03_portfolio_optimization.py
 """
 
-import sys, os
 
 import numpy as np
 import pandas as pd
-from datetime import datetime
 
 from quantsim.core.logging_config import setup_logging
 from quantsim.portfolio.optimization import (
-    HierarchicalRiskParity, RiskParityOptimizer,
-    MeanVarianceOptimizer, compute_covariance,
+    HierarchicalRiskParity,
+    MeanVarianceOptimizer,
+    RiskParityOptimizer,
+    compute_covariance,
 )
 
 setup_logging(level="WARNING")
@@ -39,12 +39,13 @@ dates = pd.date_range("2018-01-01", periods=n_bars, freq="B")
 # Correlated returns (realistic covariance structure)
 corr = np.eye(n_assets)
 # Equity bloc: SPY, QQQ, EEM, IWM, EFA are correlated
-for i in [0,1,3,4,5]: 
-    for j in [0,1,3,4,5]:
-        if i != j: corr[i,j] = 0.70
+for i in [0, 1, 3, 4, 5]:
+    for j in [0, 1, 3, 4, 5]:
+        if i != j:
+            corr[i, j] = 0.70
 # Defensive: GLD, TLT, AGG slightly negative to equities
 for bond in [2, 6, 7]:
-    for eq in [0,1,3,4,5]:
+    for eq in [0, 1, 3, 4, 5]:
         corr[bond, eq] = corr[eq, bond] = -0.15
 
 # Ensure positive definite
@@ -66,16 +67,16 @@ test_returns = returns.iloc[504:]  # will be empty for this example, so use hold
 
 # ── Run all optimizers ─────────────────────────────────────────────────────────
 optimizers = {
-    "Equal Weight":     None,
-    "HRP":              HierarchicalRiskParity(linkage_method="single"),
-    "Risk Parity":      RiskParityOptimizer(cov_method="ledoit_wolf"),
-    "Mean-Variance":    MeanVarianceOptimizer(cov_method="ledoit_wolf"),
+    "Equal Weight": None,
+    "HRP": HierarchicalRiskParity(linkage_method="single"),
+    "Risk Parity": RiskParityOptimizer(cov_method="ledoit_wolf"),
+    "Mean-Variance": MeanVarianceOptimizer(cov_method="ledoit_wolf"),
 }
 
-print(f"{'='*65}")
+print(f"{'=' * 65}")
 print("PORTFOLIO OPTIMIZER COMPARISON")
 print(f"Training on {len(train_returns)} bars, {n_assets} assets")
-print(f"{'='*65}")
+print(f"{'=' * 65}")
 print(f"{'Optimizer':<18} {'Weights (top 3)':<35} {'Port Vol':>9} {'HHI':>8}")
 print("-" * 65)
 
@@ -83,7 +84,7 @@ results = {}
 for name, opt in optimizers.items():
     if opt is None:
         # Equal weight
-        weights = {s: 1/n_assets for s in symbols}
+        weights = {s: 1 / n_assets for s in symbols}
     else:
         weights = opt.optimize(train_returns)
 
@@ -100,22 +101,26 @@ for name, opt in optimizers.items():
     print(f"  {name:<16} {top3:<35} {port_vol:>8.1%} {hhi:>8.3f}")
 
 # ── Compare in-sample portfolio properties ─────────────────────────────────────
-print(f"\n{'='*65}")
+print(f"\n{'=' * 65}")
 print("WEIGHT CONCENTRATION (HHI: lower = more diversified)")
-print(f"  Equal Weight baseline: 1/{n_assets} = {1/n_assets:.3f}")
+print(f"  Equal Weight baseline: 1/{n_assets} = {1 / n_assets:.3f}")
 for name, r in results.items():
-    diff = r['hhi'] - (1/n_assets)
-    more_conc = "more concentrated" if diff > 0.01 else ("similar" if abs(diff) < 0.01 else "more diversified")
+    diff = r["hhi"] - (1 / n_assets)
+    more_conc = (
+        "more concentrated"
+        if diff > 0.01
+        else ("similar" if abs(diff) < 0.01 else "more diversified")
+    )
     print(f"  {name:<18} HHI={r['hhi']:.3f} ({more_conc})")
 
-print(f"\n{'='*65}")
+print(f"\n{'=' * 65}")
 print("ANNUALIZED PORTFOLIO VOLATILITY")
 for name, r in results.items():
     print(f"  {name:<18} {r['vol']:.1%}")
 
-print(f"\n{'='*65}")
+print(f"\n{'=' * 65}")
 print("KEY INSIGHT")
-print(f"{'='*65}")
+print(f"{'=' * 65}")
 print("HRP diversifies across clusters rather than individual assets.")
 print("This makes it robust to covariance estimation errors.")
 print("Mean-Variance minimizes variance on training data but is")

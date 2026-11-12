@@ -9,30 +9,35 @@ Only DataHandler and ExecutionHandler differ between modes.
 """
 
 from __future__ import annotations
+
 import logging
 import time
 from datetime import datetime
-from typing import List, Optional, Dict, Type
+from typing import Dict, List, Optional
 
-from quantsim.core.event_queue import EventQueue
-from quantsim.core.events import (
-    EventType, BarEvent, SignalEvent, OrderEvent, FillEvent, RiskEvent
-)
-from quantsim.core.database import init_db, DB_PATH
-from quantsim.data.data_handler import HistoricalDataHandler
-from quantsim.portfolio.portfolio import Portfolio
-from quantsim.portfolio.manager import PortfolioManager
-from quantsim.portfolio.sizing import PositionSizer, EqualWeightSizer, VolatilityTargetSizer
-from quantsim.risk.risk_manager import RiskManager
 from quantsim.backtesting.execution import (
-    BacktestExecutionHandler, VolumeProportionalSlippage,
-    ZeroCommission, PerShareCommission, FillModel
+    BacktestExecutionHandler,
+    FillModel,
+    VolumeProportionalSlippage,
+    ZeroCommission,
 )
-from quantsim.strategies.trend import Strategy
-from quantsim.reporting.analytics import PerformanceAnalytics, load_equity_curve_from_db, load_trades_from_db
 from quantsim.backtesting.order_manager import OrderManager
+from quantsim.core.database import DB_PATH, init_db
+from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, EventType, FillEvent, OrderEvent, RiskEvent, SignalEvent
+from quantsim.data.data_handler import HistoricalDataHandler
+from quantsim.portfolio.manager import PortfolioManager
+from quantsim.portfolio.portfolio import Portfolio
+from quantsim.portfolio.sizing import EqualWeightSizer, PositionSizer
+from quantsim.reporting.analytics import (
+    PerformanceAnalytics,
+    load_equity_curve_from_db,
+    load_trades_from_db,
+)
+from quantsim.risk.risk_manager import RiskManager
 from quantsim.strategies.garch_vol import GARCHVolatilityAdapter
 from quantsim.strategies.registry import EnsembleEngine
+from quantsim.strategies.trend import Strategy
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +45,15 @@ logger = logging.getLogger(__name__)
 class BacktestEngine:
     """
     Event-driven backtesting engine.
-    
+
     Architecture:
       DataHandler fires BarEvents → Strategies process BarEvents → emit SignalEvents
       → PortfolioManager converts to OrderEvents → ExecutionHandler simulates fills
       → FillEvents update Portfolio → ReportingEngine logs everything
-    
+
     The loop processes events in strict chronological order with FillEvents
     having priority over BarEvents at the same timestamp.
-    
+
     Walking skeleton validation: run BuyAndHold on SPY, expect total return
     within 0.1% annually of published SPY total return.
     """
@@ -82,11 +87,7 @@ class BacktestEngine:
         init_db(db_path)
 
         # Collect universe from all strategies
-        universe = list(set(
-            asset_id
-            for strategy in strategies
-            for asset_id in strategy.asset_ids
-        ))
+        universe = list(set(asset_id for strategy in strategies for asset_id in strategy.asset_ids))
 
         # Event queue
         self.event_queue = EventQueue()
@@ -145,9 +146,7 @@ class BacktestEngine:
         self.order_manager = OrderManager(event_queue=self.event_queue)
 
         # GARCH volatility adapter (feeds VolatilityTargetSizer)
-        self.garch_adapter = GARCHVolatilityAdapter(
-            fit_window=252, refit_every=21
-        )
+        self.garch_adapter = GARCHVolatilityAdapter(fit_window=252, refit_every=21)
 
         # Ensemble support: if use_ensemble=True, wrap strategies
         if use_ensemble and len(strategies) > 1:
@@ -178,7 +177,7 @@ class BacktestEngine:
     def run(self) -> Dict:
         """
         Execute the backtest. Returns performance analytics dict.
-        
+
         Event loop:
         1. Advance DataHandler one bar (fires BarEvents)
         2. Process all queued events (signals → orders → fills)
@@ -263,25 +262,30 @@ class BacktestEngine:
                     try:
                         strategy.on_bar(event, self.data_handler)
                     except Exception as e:
-                        logger.error(f"Strategy {strategy.strategy_id} error on {event.asset_id}: {e}")
+                        logger.error(
+                            f"Strategy {strategy.strategy_id} error on {event.asset_id}: {e}"
+                        )
 
     def _write_equity_snapshot(self, timestamp) -> None:
         """Write an equity snapshot to the DB. Called every 21 bars so
         load_equity_curve_from_db() has enough resolution for analytics."""
         try:
-            ts_epoch = int(timestamp.timestamp()) if hasattr(timestamp, 'timestamp') else int(timestamp)
+            ts_epoch = (
+                int(timestamp.timestamp()) if hasattr(timestamp, "timestamp") else int(timestamp)
+            )
             equity = self.portfolio.total_equity
             cash = self.portfolio.cash
             rpnl = self.portfolio.realized_pnl
             upnl = self.portfolio.unrealized_pnl
-            payload = '{}'
+            payload = "{}"
             from quantsim.core.database import db_conn
+
             with db_conn(self.db_path) as conn:
                 conn.execute(
                     "INSERT INTO portfolio_snapshots "
                     "(timestamp, total_equity, cash, realized_pnl, unrealized_pnl, payload) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
-                    (ts_epoch, equity, cash, rpnl, upnl, payload)
+                    (ts_epoch, equity, cash, rpnl, upnl, payload),
                 )
         except Exception:
             pass  # Never let DB writes crash the backtest
@@ -328,7 +332,7 @@ class BacktestEngine:
                 # Normalize all timestamps to naive UTC for consistent indexing
                 clean_ts = []
                 for t in timestamps:
-                    if hasattr(t, 'tzinfo') and t.tzinfo is not None:
+                    if hasattr(t, "tzinfo") and t.tzinfo is not None:
                         t = t.replace(tzinfo=None)
                     clean_ts.append(t)
                 equity_curve = pd.Series(
@@ -336,7 +340,7 @@ class BacktestEngine:
                     index=pd.DatetimeIndex(clean_ts),
                 )
                 # Deduplicate: keep last value per timestamp
-                equity_curve = equity_curve[~equity_curve.index.duplicated(keep='last')]
+                equity_curve = equity_curve[~equity_curve.index.duplicated(keep="last")]
                 equity_curve = equity_curve.sort_index()
 
         trades_df = load_trades_from_db(self.db_path)

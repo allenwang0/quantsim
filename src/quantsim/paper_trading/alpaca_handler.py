@@ -18,7 +18,7 @@ Key capabilities:
 
 This module implements:
 1. AlpacaLiveDataHandler: replaces HistoricalDataHandler for live mode
-2. AlpacaPaperExecutionHandler: replaces SimulatedExecutionHandler  
+2. AlpacaPaperExecutionHandler: replaces SimulatedExecutionHandler
 3. WebSocket streaming for real-time bars
 4. Account reconciliation
 
@@ -27,19 +27,18 @@ backtesting counterparts. Strategy code is identical in both modes.
 """
 
 from __future__ import annotations
-import os
-import json
-import asyncio
+
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
+
 import pandas as pd
-import numpy as np
 
 from quantsim.core.config import resolve_alpaca_paper
-from quantsim.core.events import BarEvent, FillEvent, OrderEvent, OrderSide, AssetType
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, FillEvent, OrderEvent, OrderSide
 from quantsim.data.data_handler import DataHandler
 
 logger = logging.getLogger(__name__)
@@ -49,16 +48,20 @@ ALPACA_API_KEY = os.environ.get("ALPACA_API_KEY", "")
 ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY", "")
 
 try:
-    from alpaca.trading.client import TradingClient
-    from alpaca.trading.requests import (
-        MarketOrderRequest, LimitOrderRequest,
-        GetOrdersRequest, GetPositionsRequest,
-    )
-    from alpaca.trading.enums import OrderSide as AlpacaSide, TimeInForce as AlpacaTIF
     from alpaca.data.historical import StockHistoricalDataClient
+    from alpaca.data.live import StockDataStream
     from alpaca.data.requests import StockBarsRequest
     from alpaca.data.timeframe import TimeFrame
-    from alpaca.data.live import StockDataStream
+    from alpaca.trading.client import TradingClient
+    from alpaca.trading.enums import OrderSide as AlpacaSide
+    from alpaca.trading.enums import TimeInForce as AlpacaTIF
+    from alpaca.trading.requests import (
+        GetOrdersRequest,
+        GetPositionsRequest,
+        LimitOrderRequest,
+        MarketOrderRequest,
+    )
+
     ALPACA_AVAILABLE = True
 except ImportError:
     ALPACA_AVAILABLE = False
@@ -68,7 +71,7 @@ except ImportError:
 class AlpacaDataClient:
     """
     Wrapper around Alpaca's data API for historical and live data.
-    
+
     Free tier provides:
     - Historical daily/minute bars from 2002
     - Real-time WebSocket streaming
@@ -157,14 +160,16 @@ class AlpacaTradingClient:
             positions = self._client.get_all_positions()
             result = []
             for pos in positions:
-                result.append({
-                    "symbol": pos.symbol,
-                    "qty": float(pos.qty),
-                    "avg_entry_price": float(pos.avg_entry_price),
-                    "current_price": float(pos.current_price),
-                    "unrealized_pl": float(pos.unrealized_pl),
-                    "market_value": float(pos.market_value),
-                })
+                result.append(
+                    {
+                        "symbol": pos.symbol,
+                        "qty": float(pos.qty),
+                        "avg_entry_price": float(pos.avg_entry_price),
+                        "current_price": float(pos.current_price),
+                        "unrealized_pl": float(pos.unrealized_pl),
+                        "market_value": float(pos.market_value),
+                    }
+                )
             return result
         except Exception as e:
             logger.error(f"Alpaca get_positions error: {e}")
@@ -227,15 +232,17 @@ class AlpacaTradingClient:
             orders = self._client.get_orders(filter=request)
             result = []
             for order in orders:
-                result.append({
-                    "id": str(order.id),
-                    "symbol": order.symbol,
-                    "qty": float(order.qty or 0),
-                    "filled_qty": float(order.filled_qty or 0),
-                    "filled_avg_price": float(order.filled_avg_price or 0),
-                    "status": str(order.status),
-                    "side": str(order.side),
-                })
+                result.append(
+                    {
+                        "id": str(order.id),
+                        "symbol": order.symbol,
+                        "qty": float(order.qty or 0),
+                        "filled_qty": float(order.filled_qty or 0),
+                        "filled_avg_price": float(order.filled_avg_price or 0),
+                        "status": str(order.status),
+                        "side": str(order.side),
+                    }
+                )
             return result
         except Exception as e:
             logger.error(f"Alpaca get_orders error: {e}")
@@ -253,10 +260,10 @@ class AlpacaTradingClient:
 class AlpacaLiveDataHandler(DataHandler):
     """
     Live data handler using Alpaca's WebSocket streaming.
-    
+
     Architecture: runs as asyncio coroutines in the trading process.
     Bars arrive via WebSocket → buffered → served via get_latest_bars().
-    
+
     Daily-resolution strategies: poll every 60s, construct daily bars
     from minute aggregations during market hours.
     """
@@ -300,16 +307,19 @@ class AlpacaLiveDataHandler(DataHandler):
             return
 
         start = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=400)
-        bars = self._data_client.get_historical_bars(
-            self._asset_ids, start=start
-        )
+        bars = self._data_client.get_historical_bars(self._asset_ids, start=start)
 
         for symbol, df in bars.items():
             if not df.empty:
-                self._bar_cache[symbol] = df.rename(columns={
-                    "open": "open", "high": "high", "low": "low",
-                    "close": "close", "volume": "volume",
-                })
+                self._bar_cache[symbol] = df.rename(
+                    columns={
+                        "open": "open",
+                        "high": "high",
+                        "low": "low",
+                        "close": "close",
+                        "volume": "volume",
+                    }
+                )
                 # Add adj_close as close (Alpaca returns adjusted data)
                 self._bar_cache[symbol]["adj_close"] = self._bar_cache[symbol]["close"]
 
@@ -317,8 +327,9 @@ class AlpacaLiveDataHandler(DataHandler):
 
     def _fallback_to_yfinance(self) -> None:
         """Fall back to yfinance if Alpaca credentials not set."""
-        import yfinance as yf
         from datetime import timedelta
+
+        import yfinance as yf
 
         end = datetime.now(timezone.utc).replace(tzinfo=None)
         start = end - timedelta(days=400)
@@ -333,7 +344,9 @@ class AlpacaLiveDataHandler(DataHandler):
             )
             for symbol in self._asset_ids:
                 try:
-                    sym_data = data.xs(symbol, axis=1, level=1) if len(self._asset_ids) > 1 else data
+                    sym_data = (
+                        data.xs(symbol, axis=1, level=1) if len(self._asset_ids) > 1 else data
+                    )
                     if not sym_data.empty:
                         df = sym_data.copy()
                         df.columns = [c.lower() for c in df.columns]
@@ -390,9 +403,7 @@ class AlpacaLiveDataHandler(DataHandler):
     def universe(self) -> List[str]:
         return list(self._bar_cache.keys())
 
-    def get_latest_bars(
-        self, asset_id: str, n: int = 1, adjusted: bool = True
-    ) -> pd.DataFrame:
+    def get_latest_bars(self, asset_id: str, n: int = 1, adjusted: bool = True) -> pd.DataFrame:
         if asset_id not in self._bar_cache:
             return pd.DataFrame()
         df = self._bar_cache[asset_id]
@@ -404,17 +415,16 @@ class AlpacaLiveDataHandler(DataHandler):
         return self._bar_cache[asset_id].iloc[-1]
 
     def get_macro_value(self, series_id: str) -> Optional[float]:
-        from quantsim.data.ingestion import get_latest_macro_as_of
         from quantsim.core.database import DB_PATH
-        return get_latest_macro_as_of(
-            series_id, self._current_ts.date(), self._db_path or DB_PATH
-        )
+        from quantsim.data.ingestion import get_latest_macro_as_of
+
+        return get_latest_macro_as_of(series_id, self._current_ts.date(), self._db_path or DB_PATH)
 
 
 class AlpacaPaperExecutionHandler:
     """
     Paper trading execution handler using Alpaca's paper API.
-    
+
     Implements the same interface as BacktestExecutionHandler.
     Routes orders to Alpaca paper trading account.
     Polls for fills and emits FillEvents.
@@ -510,7 +520,7 @@ class AlpacaPaperExecutionHandler:
 
     def _simulate_fill(self, order: OrderEvent) -> None:
         """Local fill simulation when Alpaca is unavailable."""
-        from quantsim.data.data_handler import HistoricalDataHandler
+
         # Use a reasonable price estimate from the order's limit price or last known price
         price = order.limit_price or 100.0  # fallback
 

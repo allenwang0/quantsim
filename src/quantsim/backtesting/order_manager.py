@@ -25,14 +25,14 @@ Usage in strategy:
 """
 
 from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
-import numpy as np
+from typing import Dict, List, Optional
 
-from quantsim.core.events import BarEvent, SignalEvent, Direction
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, Direction, SignalEvent
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +43,13 @@ class StopLevel:
     strategy_id: str
     entry_price: float
     stop_price: float
-    stop_type: str       # 'fixed', 'trailing', 'atr'
+    stop_type: str  # 'fixed', 'trailing', 'atr'
     target_price: Optional[float] = None
     quantity: int = 0
     direction: str = "LONG"  # LONG or SHORT
     is_active: bool = True
-    highest_price: float = 0.0   # for trailing stops
-    lowest_price: float = 0.0    # for short trailing stops
+    highest_price: float = 0.0  # for trailing stops
+    lowest_price: float = 0.0  # for short trailing stops
     atr_multiple: float = 2.0
     created_at: datetime = field(default_factory=datetime.utcnow)
 
@@ -239,10 +239,17 @@ class OrderManager:
         Only the first trigger (stop or target) fires; the other is cancelled.
         This is the OCA (One-Cancels-All) behavior.
         """
-        self.add_stop_loss(asset_id, entry_price, strategy_id,
-                           stop_pct=stop_pct, direction=direction, quantity=quantity)
-        self.add_take_profit(asset_id, entry_price, strategy_id,
-                             target_pct=target_pct, direction=direction)
+        self.add_stop_loss(
+            asset_id,
+            entry_price,
+            strategy_id,
+            stop_pct=stop_pct,
+            direction=direction,
+            quantity=quantity,
+        )
+        self.add_take_profit(
+            asset_id, entry_price, strategy_id, target_pct=target_pct, direction=direction
+        )
 
     def remove(self, asset_id: str) -> None:
         """Remove all exit orders for an asset (called on position close)."""
@@ -334,8 +341,7 @@ class OrderManager:
             )
             self._queue.put(signal)
             logger.info(
-                f"EXIT triggered: {asset_id} {trigger_reason} "
-                f"(entry={stop.entry_price:.2f})"
+                f"EXIT triggered: {asset_id} {trigger_reason} (entry={stop.entry_price:.2f})"
             )
 
         return triggered

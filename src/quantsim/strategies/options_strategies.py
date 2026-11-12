@@ -10,18 +10,22 @@ Scope: liquid underlyings only (SPY, QQQ, IWM, GLD, TLT, top 20 equities).
 """
 
 from __future__ import annotations
+
 import logging
-from datetime import datetime, date, timedelta
-from typing import List, Dict, Optional, Tuple
-import numpy as np
+from datetime import datetime
+from typing import Dict, List, Optional
+
 import pandas as pd
 
-from quantsim.core.events import BarEvent, SignalEvent, Direction
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, Direction
 from quantsim.data.data_handler import DataHandler
 from quantsim.data.options import (
-    reconstruct_chain, find_option_by_delta, compute_iv_rank,
-    estimate_iv_from_history, get_expected_move,
+    compute_iv_rank,
+    estimate_iv_from_history,
+    find_option_by_delta,
+    get_expected_move,
+    reconstruct_chain,
 )
 from quantsim.strategies.trend import Strategy
 
@@ -80,7 +84,7 @@ class OptionsStrategyBase(Strategy):
         iv_series_hist = pd.Series(self._iv_history)
         ivr, iv_pct = compute_iv_rank(iv_series_hist, current_iv)
 
-        as_of_date = as_of.date() if hasattr(as_of, 'date') else as_of
+        as_of_date = as_of.date() if hasattr(as_of, "date") else as_of
 
         chain = reconstruct_chain(
             underlying=self.underlying,
@@ -102,10 +106,10 @@ class OptionsStrategyBase(Strategy):
 class CoveredCallStrategy(OptionsStrategyBase):
     """
     Covered call: long 100 shares + short 0.30-delta call, 30-45 DTE.
-    
+
     Entry condition: LOW_VOL regime (IVR > 30).
     Exit: close short call at 50% max profit or 21 DTE.
-    
+
     Economics: collects premium in exchange for capped upside.
     Transaction cost: 1 leg open + 1 leg close = 2 half-spreads.
     """
@@ -143,7 +147,9 @@ class CoveredCallStrategy(OptionsStrategyBase):
         if not self._has_equity:
             self._has_equity = True
             self._emit_signal(
-                self.underlying, Direction.LONG, event.timestamp,
+                self.underlying,
+                Direction.LONG,
+                event.timestamp,
                 signal_type="covered_call_equity",
                 metadata={"note": "underlying for covered call"},
             )
@@ -155,16 +161,16 @@ class CoveredCallStrategy(OptionsStrategyBase):
         if self._active_short_call is None and ivr >= self.min_ivr:
             # Find option closest to target delta for target DTE
             target_exp_calls = [q for q in chain if q["right"] == "C"]
-            target_call = find_option_by_delta(
-                target_exp_calls, self.short_delta, "C"
-            )
+            target_call = find_option_by_delta(target_exp_calls, self.short_delta, "C")
 
             if target_call and target_call["is_liquid"] and target_call["bid"] > 0.10:
                 self._active_short_call = target_call
                 self._premium_collected = target_call["bid"]  # sell at bid
 
                 self._emit_signal(
-                    self.underlying, Direction.SHORT, event.timestamp,
+                    self.underlying,
+                    Direction.SHORT,
+                    event.timestamp,
                     confidence=min(1.0, ivr),
                     signal_type="covered_call_open",
                     metadata={
@@ -184,16 +190,26 @@ class CoveredCallStrategy(OptionsStrategyBase):
             if exp_date:
                 if isinstance(exp_date, str):
                     exp_date = datetime.strptime(exp_date, "%Y-%m-%d").date()
-                dte = (exp_date - event.timestamp.date()).days if hasattr(event.timestamp, 'date') else 30
+                dte = (
+                    (exp_date - event.timestamp.date()).days
+                    if hasattr(event.timestamp, "date")
+                    else 30
+                )
 
                 # Exit at 21 DTE or 50% profit
                 current_value = call.get("last", call.get("ask", 0))
-                profit_pct = (self._premium_collected - current_value) / self._premium_collected if self._premium_collected > 0 else 0
+                profit_pct = (
+                    (self._premium_collected - current_value) / self._premium_collected
+                    if self._premium_collected > 0
+                    else 0
+                )
 
                 if dte <= self.exit_dte or profit_pct >= self.exit_profit_pct:
                     self._active_short_call = None
                     self._emit_signal(
-                        self.underlying, Direction.FLAT, event.timestamp,
+                        self.underlying,
+                        Direction.FLAT,
+                        event.timestamp,
                         signal_type="covered_call_close",
                         metadata={"profit_pct": profit_pct, "dte": dte},
                     )
@@ -202,15 +218,15 @@ class CoveredCallStrategy(OptionsStrategyBase):
 class IronCondorStrategy(OptionsStrategyBase):
     """
     Iron condor: short OTM put spread + short OTM call spread.
-    
+
     Short strikes at 0.16-delta (~1 standard deviation).
     Entry: LOW_VOL regime, IVR > 50.
-    
+
     Exit rules:
     1. Close at 50% max profit
     2. Close at 200% loss on one spread (stop loss)
     3. Close at 21 DTE (gamma risk increases sharply)
-    
+
     CRITICAL TRANSACTION COST WARNING:
     4 legs * open + 4 legs * close = 8 half-spreads.
     For options with spread = 20% of mid, this consumes 80% of premium.
@@ -283,7 +299,7 @@ class IronCondorStrategy(OptionsStrategyBase):
             # Model bid-ask spread costs: pay half-spread on each of 4 legs
             sc_credit = short_call["bid"]  # sell at bid
             sp_credit = short_put["bid"]
-            lc_cost = long_call["ask"]     # buy at ask
+            lc_cost = long_call["ask"]  # buy at ask
             lp_cost = long_put["ask"]
 
             net_credit = sc_credit + sp_credit - lc_cost - lp_cost
@@ -311,7 +327,9 @@ class IronCondorStrategy(OptionsStrategyBase):
             self._max_loss_per_spread = max_loss
 
             self._emit_signal(
-                self.underlying, Direction.FLAT, event.timestamp,
+                self.underlying,
+                Direction.FLAT,
+                event.timestamp,
                 signal_type="iron_condor_open",
                 metadata={
                     "net_credit": net_credit,
@@ -333,7 +351,11 @@ class IronCondorStrategy(OptionsStrategyBase):
                 if isinstance(exp_date, str):
                     try:
                         exp_date_obj = datetime.strptime(exp_date, "%Y-%m-%d").date()
-                        curr_date = event.timestamp.date() if hasattr(event.timestamp, 'date') else event.timestamp
+                        curr_date = (
+                            event.timestamp.date()
+                            if hasattr(event.timestamp, "date")
+                            else event.timestamp
+                        )
                         dte = (exp_date_obj - curr_date).days
                     except Exception:
                         pass
@@ -341,18 +363,24 @@ class IronCondorStrategy(OptionsStrategyBase):
             # Approximate current condor value from current IV vs entry IV
             # In a full implementation, re-price all 4 legs from current chain
             approx_current_value = self._net_credit * (dte / 45.0)
-            profit_pct = (self._net_credit - approx_current_value) / self._net_credit if self._net_credit > 0 else 0
+            profit_pct = (
+                (self._net_credit - approx_current_value) / self._net_credit
+                if self._net_credit > 0
+                else 0
+            )
 
             should_close = (
-                profit_pct >= self.exit_profit_pct or  # 50% profit target
-                dte <= self.exit_dte or                  # 21 DTE rule
-                profit_pct <= -2.0                       # 200% loss stop
+                profit_pct >= self.exit_profit_pct  # 50% profit target
+                or dte <= self.exit_dte  # 21 DTE rule
+                or profit_pct <= -2.0  # 200% loss stop
             )
 
             if should_close:
                 self._active_condor = None
                 self._emit_signal(
-                    self.underlying, Direction.FLAT, event.timestamp,
+                    self.underlying,
+                    Direction.FLAT,
+                    event.timestamp,
                     signal_type="iron_condor_close",
                     metadata={"profit_pct": profit_pct, "dte": dte},
                 )
@@ -361,12 +389,12 @@ class IronCondorStrategy(OptionsStrategyBase):
 class LongStraddleStrategy(OptionsStrategyBase):
     """
     Long straddle: long ATM call + long ATM put.
-    
+
     Entry: HIGH_VOL regime (VIX > 25) or pre-earnings when actual move
     likely to exceed implied move. Long gamma, negative theta.
-    
+
     Exit: close at 25-50% loss (theta decay) or 2x profit.
-    
+
     Expected move = ATM_call_price + ATM_put_price.
     Enter only when you believe actual move > expected move.
     """
@@ -431,7 +459,9 @@ class LongStraddleStrategy(OptionsStrategyBase):
             self._entry_cost = entry_cost
 
             self._emit_signal(
-                self.underlying, Direction.LONG, event.timestamp,
+                self.underlying,
+                Direction.LONG,
+                event.timestamp,
                 signal_type="long_straddle_open",
                 metadata={
                     "expected_move": expected_move,
@@ -454,12 +484,16 @@ class LongStraddleStrategy(OptionsStrategyBase):
             # Approximate straddle value = intrinsic + remaining time value
             approx_value = max(price_move - self._entry_cost * 0.3, self._entry_cost * 0.1)
 
-            pnl_pct = (approx_value - self._entry_cost) / self._entry_cost if self._entry_cost > 0 else 0
+            pnl_pct = (
+                (approx_value - self._entry_cost) / self._entry_cost if self._entry_cost > 0 else 0
+            )
 
             if pnl_pct <= -self.max_loss_pct or pnl_pct >= (self.profit_target - 1):
                 self._active_straddle = None
                 self._emit_signal(
-                    self.underlying, Direction.FLAT, event.timestamp,
+                    self.underlying,
+                    Direction.FLAT,
+                    event.timestamp,
                     signal_type="long_straddle_close",
                     metadata={"pnl_pct": float(pnl_pct)},
                 )

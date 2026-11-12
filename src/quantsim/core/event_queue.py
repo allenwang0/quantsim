@@ -4,9 +4,10 @@ FillEvents always process before BarEvents at the same timestamp.
 """
 
 import heapq
-from typing import List, Tuple, Any
 from datetime import datetime
-from quantsim.core.events import Event, EventType, EVENT_PRIORITY
+from typing import List, Tuple
+
+from quantsim.core.events import EVENT_PRIORITY, Event
 
 
 class EventQueue:

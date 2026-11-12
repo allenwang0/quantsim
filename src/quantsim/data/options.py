@@ -11,10 +11,11 @@ are more robust to this error.
 """
 
 import logging
+from datetime import date, timedelta
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from datetime import datetime, date, timedelta
-from typing import List, Optional, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +24,21 @@ try:
     from py_vollib.black_scholes import black_scholes as bsm_price
     from py_vollib.black_scholes.greeks.analytical import (
         delta as bsm_delta,
+    )
+    from py_vollib.black_scholes.greeks.analytical import (
         gamma as bsm_gamma,
-        theta as bsm_theta,
-        vega as bsm_vega,
+    )
+    from py_vollib.black_scholes.greeks.analytical import (
         rho as bsm_rho,
     )
+    from py_vollib.black_scholes.greeks.analytical import (
+        theta as bsm_theta,
+    )
+    from py_vollib.black_scholes.greeks.analytical import (
+        vega as bsm_vega,
+    )
     from py_vollib.black_scholes.implied_volatility import implied_volatility
+
     PY_VOLLIB_AVAILABLE = True
 except ImportError:
     PY_VOLLIB_AVAILABLE = False
@@ -37,19 +47,20 @@ except ImportError:
 
 def norm_cdf(x: float) -> float:
     from scipy.stats import norm
+
     return norm.cdf(x)
 
 
 def bsm_price_numpy(S: float, K: float, T: float, r: float, sigma: float, flag: str) -> float:
     """Pure numpy BSM price. flag: 'c' or 'p'."""
     if T <= 0 or sigma <= 0:
-        intrinsic = max(S - K, 0) if flag == 'c' else max(K - S, 0)
+        intrinsic = max(S - K, 0) if flag == "c" else max(K - S, 0)
         return intrinsic
 
     d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
 
-    if flag == 'c':
+    if flag == "c":
         price = S * norm_cdf(d1) - K * np.exp(-r * T) * norm_cdf(d2)
     else:
         price = K * np.exp(-r * T) * norm_cdf(-d2) - S * norm_cdf(-d1)
@@ -61,10 +72,13 @@ def bsm_greeks_numpy(S: float, K: float, T: float, r: float, sigma: float, flag:
     from scipy.stats import norm
 
     if T <= 0:
-        intrinsic = max(S - K, 0) if flag == 'c' else max(K - S, 0)
+        intrinsic = max(S - K, 0) if flag == "c" else max(K - S, 0)
         return {
-            "delta": 1.0 if (flag == 'c' and S > K) else (-1.0 if (flag == 'p' and S < K) else 0.0),
-            "gamma": 0.0, "theta": 0.0, "vega": 0.0, "rho": 0.0,
+            "delta": 1.0 if (flag == "c" and S > K) else (-1.0 if (flag == "p" and S < K) else 0.0),
+            "gamma": 0.0,
+            "theta": 0.0,
+            "vega": 0.0,
+            "rho": 0.0,
             "price": intrinsic,
         }
 
@@ -72,29 +86,32 @@ def bsm_greeks_numpy(S: float, K: float, T: float, r: float, sigma: float, flag:
     d2 = d1 - sigma * np.sqrt(T)
 
     price = bsm_price_numpy(S, K, T, r, sigma, flag)
-    delta = norm.cdf(d1) if flag == 'c' else norm.cdf(d1) - 1
+    delta = norm.cdf(d1) if flag == "c" else norm.cdf(d1) - 1
     gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
     theta_annual = (
         -(S * norm.pdf(d1) * sigma) / (2 * np.sqrt(T))
-        - r * K * np.exp(-r * T) * (norm.cdf(d2) if flag == 'c' else norm.cdf(-d2))
-        + (0 if flag == 'c' else r * K * np.exp(-r * T))
+        - r * K * np.exp(-r * T) * (norm.cdf(d2) if flag == "c" else norm.cdf(-d2))
+        + (0 if flag == "c" else r * K * np.exp(-r * T))
     )
     theta_daily = theta_annual / 365.0
     vega = S * norm.pdf(d1) * np.sqrt(T) / 100  # per 1% IV change
     rho_val = (
-        K * T * np.exp(-r * T) * norm.cdf(d2) / 100 if flag == 'c'
+        K * T * np.exp(-r * T) * norm.cdf(d2) / 100
+        if flag == "c"
         else -K * T * np.exp(-r * T) * norm.cdf(-d2) / 100
     )
 
     return {
-        "delta": delta, "gamma": gamma, "theta": theta_daily,
-        "vega": vega, "rho": rho_val, "price": price,
+        "delta": delta,
+        "gamma": gamma,
+        "theta": theta_daily,
+        "vega": vega,
+        "rho": rho_val,
+        "price": price,
     }
 
 
-def compute_greeks(
-    S: float, K: float, T_years: float, r: float, sigma: float, flag: str
-) -> Dict:
+def compute_greeks(S: float, K: float, T_years: float, r: float, sigma: float, flag: str) -> Dict:
     """
     Compute BSM option price and Greeks.
     Uses py_vollib if available; falls back to numpy implementation.
@@ -110,8 +127,12 @@ def compute_greeks(
             v = bsm_vega(flag, S, K, T_years, r, sigma) / 100
             rh = bsm_rho(flag, S, K, T_years, r, sigma) / 100
             return {
-                "delta": d, "gamma": g, "theta": t,
-                "vega": v, "rho": rh, "price": price,
+                "delta": d,
+                "gamma": g,
+                "theta": t,
+                "vega": v,
+                "rho": rh,
+                "price": price,
             }
     except Exception:
         pass
@@ -126,12 +147,12 @@ def estimate_iv_from_history(
 ) -> pd.Series:
     """
     Estimate historical IV at each date using realized volatility + scaling.
-    
+
     Method:
     - Compute 30-day trailing realized vol on log returns
     - Scale by (VIX / SPY_realized_vol) ratio if VIX data available
     - For non-SPY names, apply a flat premium_mult = 1.15
-    
+
     IV reconstruction error: ~20-30%. Results are indicative.
     """
     log_returns = np.log(prices / prices.shift(1))
@@ -166,7 +187,7 @@ def reconstruct_chain(
 ) -> List[Dict]:
     """
     Reconstruct a full options chain for `underlying` as of `as_of_date`.
-    
+
     Returns a list of option quote dicts (one per strike/expiry/right).
     All quotes have is_reconstructed=True.
     """
@@ -179,8 +200,11 @@ def reconstruct_chain(
             return []
         as_of_ts = prior[-1]
 
-    S = float(prices_df.loc[as_of_ts, "adj_close"] if "adj_close" in prices_df.columns
-              else prices_df.loc[as_of_ts, "close"])
+    S = float(
+        prices_df.loc[as_of_ts, "adj_close"]
+        if "adj_close" in prices_df.columns
+        else prices_df.loc[as_of_ts, "close"]
+    )
 
     if iv_series is not None and as_of_ts in iv_series.index:
         iv = float(iv_series.loc[as_of_ts])
@@ -190,7 +214,7 @@ def reconstruct_chain(
         if idx < 30:
             iv = 0.20
         else:
-            slice_ = prices_df.iloc[max(0, idx-30):idx+1]
+            slice_ = prices_df.iloc[max(0, idx - 30) : idx + 1]
             closes = slice_["adj_close"] if "adj_close" in slice_.columns else slice_["close"]
             returns = np.log(closes / closes.shift(1)).dropna()
             iv = float(returns.std() * np.sqrt(252) * 1.15)
@@ -229,25 +253,27 @@ def reconstruct_chain(
                 synthetic_oi = max(10, int(1000 * delta_abs * (1 - moneyness)))
                 synthetic_vol = max(1, int(100 * delta_abs))
 
-                quotes.append({
-                    "underlying_id": underlying,
-                    "timestamp": as_of_date,
-                    "expiration": exp_date,
-                    "strike": K,
-                    "right": right,
-                    "bid": round(bid, 2),
-                    "ask": round(ask, 2),
-                    "last": round(price, 2),
-                    "volume": synthetic_vol,
-                    "open_interest": synthetic_oi,
-                    "iv": iv,
-                    "delta": greeks["delta"],
-                    "gamma": greeks["gamma"],
-                    "theta": greeks["theta"],
-                    "vega": greeks["vega"],
-                    "rho": greeks["rho"],
-                    "is_reconstructed": True,
-                })
+                quotes.append(
+                    {
+                        "underlying_id": underlying,
+                        "timestamp": as_of_date,
+                        "expiration": exp_date,
+                        "strike": K,
+                        "right": right,
+                        "bid": round(bid, 2),
+                        "ask": round(ask, 2),
+                        "last": round(price, 2),
+                        "volume": synthetic_vol,
+                        "open_interest": synthetic_oi,
+                        "iv": iv,
+                        "delta": greeks["delta"],
+                        "gamma": greeks["gamma"],
+                        "theta": greeks["theta"],
+                        "vega": greeks["vega"],
+                        "rho": greeks["rho"],
+                        "is_reconstructed": True,
+                    }
+                )
 
     return quotes
 
@@ -289,10 +315,10 @@ def compute_iv_rank(
 ) -> Tuple[float, float]:
     """
     Returns (IV_Rank, IV_Percentile) for current_iv given iv_history.
-    
+
     IV Rank  = (current - 52wk_low) / (52wk_high - 52wk_low)
     IV Pctile = fraction of days in window where IV was below current
-    
+
     The distinction matters: a stock at its 52wk low IV has IVR=0 but
     may still have high IV Percentile if most days were even lower.
     """

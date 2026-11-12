@@ -26,21 +26,21 @@ Bug 3: Stale DB equity curve
 These tests must pass on every future run. If any fails, a regression occurred.
 """
 
-import sys, os, tempfile
+import os
+from datetime import datetime
 
-import pytest
 import numpy as np
 import pandas as pd
-from datetime import datetime
+import pytest
 
 
 def build_test_engine(db_path, n_bars=400, warmup=30, seed=42):
     """Build a BacktestEngine with synthetic SPY data. Short warmup to get many fills."""
-    from quantsim.core.database_v2 import init_full_db
-    from quantsim.core.database import db_conn
-    from quantsim.strategies.momentum_factor import BuyAndHold
-    from quantsim.core.event_queue import EventQueue
     from quantsim.backtesting.engine import BacktestEngine
+    from quantsim.core.database import db_conn
+    from quantsim.core.database_v2 import init_full_db
+    from quantsim.core.event_queue import EventQueue
+    from quantsim.strategies.momentum_factor import BuyAndHold
 
     init_full_db(db_path)
 
@@ -55,7 +55,7 @@ def build_test_engine(db_path, n_bars=400, warmup=30, seed=42):
                 "INSERT OR REPLACE INTO raw_bars "
                 "(asset_id, timestamp, open, high, low, close, volume, source) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                ("SPY", ts, price*0.998, price*1.005, price*0.995, price, 10_000_000, "test"),
+                ("SPY", ts, price * 0.998, price * 1.005, price * 0.995, price, 10_000_000, "test"),
             )
             conn.execute(
                 "INSERT OR REPLACE INTO adjustment_factors "
@@ -106,7 +106,7 @@ class TestBug1QueueMismatch:
         engine, _ = build_test_engine(db_path, warmup=10)
         engine.run()
         assert engine._fills_processed >= 1, (
-            f"Engine processed 0 fills. Signals emitted to wrong queue (queue mismatch bug)."
+            "Engine processed 0 fills. Signals emitted to wrong queue (queue mismatch bug)."
         )
 
     def test_signals_processed_matches_fills(self, tmp_path):
@@ -171,11 +171,11 @@ class TestBug2TimestampPropagation:
         db_path = str(tmp_path / "ts4.db")
         os.environ["QUANTSIM_DB"] = db_path
         # Use strong positive drift to ensure positive return
-        from quantsim.core.database_v2 import init_full_db
-        from quantsim.core.database import db_conn
-        from quantsim.strategies.momentum_factor import BuyAndHold
-        from quantsim.core.event_queue import EventQueue
         from quantsim.backtesting.engine import BacktestEngine
+        from quantsim.core.database import db_conn
+        from quantsim.core.database_v2 import init_full_db
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.strategies.momentum_factor import BuyAndHold
 
         init_full_db(db_path)
         np.random.seed(1)
@@ -186,14 +186,25 @@ class TestBug2TimestampPropagation:
         with db_conn(db_path) as conn:
             for d, p in zip(dates, prices):
                 ts = int(d.timestamp())
-                conn.execute("INSERT OR REPLACE INTO raw_bars (asset_id,timestamp,open,high,low,close,volume,source) VALUES (?,?,?,?,?,?,?,?)",
-                    ("SPY", ts, p*0.998, p*1.005, p*0.995, p, 10_000_000, "test"))
-                conn.execute("INSERT OR REPLACE INTO adjustment_factors VALUES (?,?,1.0,0.0)", ("SPY", ts))
+                conn.execute(
+                    "INSERT OR REPLACE INTO raw_bars (asset_id,timestamp,open,high,low,close,volume,source) VALUES (?,?,?,?,?,?,?,?)",
+                    ("SPY", ts, p * 0.998, p * 1.005, p * 0.995, p, 10_000_000, "test"),
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO adjustment_factors VALUES (?,?,1.0,0.0)", ("SPY", ts)
+                )
 
         eq = EventQueue()
         s = BuyAndHold(asset_ids=["SPY"], event_queue=eq)
-        engine = BacktestEngine(strategies=[s], start=datetime(2020,1,2), end=datetime(2020,12,31),
-            initial_capital=100_000, db_path=db_path, verbose=False, warmup_bars=20)
+        engine = BacktestEngine(
+            strategies=[s],
+            start=datetime(2020, 1, 2),
+            end=datetime(2020, 12, 31),
+            initial_capital=100_000,
+            db_path=db_path,
+            verbose=False,
+            warmup_bars=20,
+        )
         results = engine.run()
 
         tr = results.get("total_return", 0) or 0
@@ -208,8 +219,8 @@ class TestBug3StaleDBEquityCurve:
 
     def test_constant_equity_curve_triggers_fallback(self, tmp_path):
         """If DB has a constant equity curve, fallback to portfolio history."""
-        from quantsim.core.database_v2 import init_full_db
         from quantsim.core.database import db_conn
+        from quantsim.core.database_v2 import init_full_db
         from quantsim.reporting.analytics import load_equity_curve_from_db
 
         db_path = str(tmp_path / "stale.db")
@@ -228,11 +239,11 @@ class TestBug3StaleDBEquityCurve:
 
     def test_engine_uses_portfolio_history_over_stale_db(self, tmp_path):
         """Engine must return meaningful results even with a stale DB."""
-        from quantsim.core.database_v2 import init_full_db
-        from quantsim.core.database import db_conn
-        from quantsim.strategies.momentum_factor import BuyAndHold
-        from quantsim.core.event_queue import EventQueue
         from quantsim.backtesting.engine import BacktestEngine
+        from quantsim.core.database import db_conn
+        from quantsim.core.database_v2 import init_full_db
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.strategies.momentum_factor import BuyAndHold
 
         db_path = str(tmp_path / "stale2.db")
         os.environ["QUANTSIM_DB"] = db_path
@@ -253,14 +264,25 @@ class TestBug3StaleDBEquityCurve:
         with db_conn(db_path) as conn:
             for d, p in zip(dates, prices):
                 ts = int(d.timestamp())
-                conn.execute("INSERT OR REPLACE INTO raw_bars (asset_id,timestamp,open,high,low,close,volume,source) VALUES (?,?,?,?,?,?,?,?)",
-                    ("SPY", ts, p*0.998, p*1.005, p*0.995, p, 1_000_000, "test"))
-                conn.execute("INSERT OR REPLACE INTO adjustment_factors VALUES (?,?,1.0,0.0)", ("SPY", ts))
+                conn.execute(
+                    "INSERT OR REPLACE INTO raw_bars (asset_id,timestamp,open,high,low,close,volume,source) VALUES (?,?,?,?,?,?,?,?)",
+                    ("SPY", ts, p * 0.998, p * 1.005, p * 0.995, p, 1_000_000, "test"),
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO adjustment_factors VALUES (?,?,1.0,0.0)", ("SPY", ts)
+                )
 
         eq = EventQueue()
         s = BuyAndHold(asset_ids=["SPY"], event_queue=eq)
-        engine = BacktestEngine(strategies=[s], start=datetime(2020,1,2), end=datetime(2020,12,31),
-            initial_capital=100_000, db_path=db_path, verbose=False, warmup_bars=20)
+        engine = BacktestEngine(
+            strategies=[s],
+            start=datetime(2020, 1, 2),
+            end=datetime(2020, 12, 31),
+            initial_capital=100_000,
+            db_path=db_path,
+            verbose=False,
+            warmup_bars=20,
+        )
         results = engine.run()
 
         # Must not return None (stale DB must be bypassed)
@@ -275,11 +297,11 @@ class TestIntegrationCorrectness:
 
     def test_sma_crossover_produces_multiple_trades(self, tmp_path):
         """SMA crossover should generate multiple signals on a trending series."""
-        from quantsim.core.database_v2 import init_full_db
-        from quantsim.core.database import db_conn
-        from quantsim.strategies.trend import SMAcrossover
-        from quantsim.core.event_queue import EventQueue
         from quantsim.backtesting.engine import BacktestEngine
+        from quantsim.core.database import db_conn
+        from quantsim.core.database_v2 import init_full_db
+        from quantsim.core.event_queue import EventQueue
+        from quantsim.strategies.trend import SMAcrossover
 
         db_path = str(tmp_path / "sma.db")
         os.environ["QUANTSIM_DB"] = db_path
@@ -290,7 +312,7 @@ class TestIntegrationCorrectness:
         n = 400
         dates = pd.date_range("2018-01-01", periods=n, freq="B")
         # Add trend reversals to ensure crossovers
-        t = np.linspace(0, 4*np.pi, n)
+        t = np.linspace(0, 4 * np.pi, n)
         trend = np.sin(t) * 20 + np.random.normal(0, 2, n)
         prices = 100 + np.cumsum(trend * 0.1)
         prices = np.maximum(prices, 10)  # floor at $10
@@ -298,14 +320,25 @@ class TestIntegrationCorrectness:
         with db_conn(db_path) as conn:
             for d, p in zip(dates, prices):
                 ts = int(d.timestamp())
-                conn.execute("INSERT OR REPLACE INTO raw_bars (asset_id,timestamp,open,high,low,close,volume,source) VALUES (?,?,?,?,?,?,?,?)",
-                    ("SPY", ts, p*0.998, p*1.005, p*0.995, p, 1_000_000, "test"))
-                conn.execute("INSERT OR REPLACE INTO adjustment_factors VALUES (?,?,1.0,0.0)", ("SPY", ts))
+                conn.execute(
+                    "INSERT OR REPLACE INTO raw_bars (asset_id,timestamp,open,high,low,close,volume,source) VALUES (?,?,?,?,?,?,?,?)",
+                    ("SPY", ts, p * 0.998, p * 1.005, p * 0.995, p, 1_000_000, "test"),
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO adjustment_factors VALUES (?,?,1.0,0.0)", ("SPY", ts)
+                )
 
         eq = EventQueue()
         s = SMAcrossover(asset_ids=["SPY"], event_queue=eq, fast=10, slow=40)
-        engine = BacktestEngine(strategies=[s], start=datetime(2018,1,1), end=datetime(2019,6,30),
-            initial_capital=100_000, db_path=db_path, verbose=False, warmup_bars=50)
+        engine = BacktestEngine(
+            strategies=[s],
+            start=datetime(2018, 1, 1),
+            end=datetime(2019, 6, 30),
+            initial_capital=100_000,
+            db_path=db_path,
+            verbose=False,
+            warmup_bars=50,
+        )
         results = engine.run()
 
         assert engine._signals_processed >= 1, "SMA crossover emitted no signals."

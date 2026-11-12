@@ -4,11 +4,12 @@ All modules communicate exclusively through these events via the EventQueue.
 """
 
 from __future__ import annotations
+
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, List
-import uuid
+from typing import Any, Dict, List, Optional
 
 
 class EventType(Enum):
@@ -97,7 +98,8 @@ class BarEvent:
 
     def __lt__(self, other):
         return (self.timestamp, EVENT_PRIORITY[self.event_type]) < (
-            other.timestamp, EVENT_PRIORITY[other.event_type]
+            other.timestamp,
+            EVENT_PRIORITY[other.event_type],
         )
 
 
@@ -108,14 +110,15 @@ class SignalEvent:
     strategy_id: str = ""
     asset_id: str = ""
     direction: Direction = Direction.FLAT
-    confidence: float = 1.0           # [0, 1]
-    signal_type: str = ""             # 'trend', 'mean_reversion', 'momentum', etc.
+    confidence: float = 1.0  # [0, 1]
+    signal_type: str = ""  # 'trend', 'mean_reversion', 'momentum', etc.
     holding_period_estimate: int = 1  # expected bars to hold
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __lt__(self, other):
         return (self.timestamp, EVENT_PRIORITY[self.event_type]) < (
-            other.timestamp, EVENT_PRIORITY[other.event_type]
+            other.timestamp,
+            EVENT_PRIORITY[other.event_type],
         )
 
 
@@ -146,7 +149,8 @@ class OrderEvent:
 
     def __lt__(self, other):
         return (self.timestamp, EVENT_PRIORITY[self.event_type]) < (
-            other.timestamp, EVENT_PRIORITY[other.event_type]
+            other.timestamp,
+            EVENT_PRIORITY[other.event_type],
         )
 
 
@@ -179,7 +183,8 @@ class FillEvent:
 
     def __lt__(self, other):
         return (self.timestamp, EVENT_PRIORITY[self.event_type]) < (
-            other.timestamp, EVENT_PRIORITY[other.event_type]
+            other.timestamp,
+            EVENT_PRIORITY[other.event_type],
         )
 
 
@@ -194,7 +199,8 @@ class RiskEvent:
 
     def __lt__(self, other):
         return (self.timestamp, EVENT_PRIORITY[self.event_type]) < (
-            other.timestamp, EVENT_PRIORITY[other.event_type]
+            other.timestamp,
+            EVENT_PRIORITY[other.event_type],
         )
 
 

@@ -5,7 +5,7 @@ Usage:
   quantsim paper --strategy sma --symbol SPY QQQ
   quantsim paper --strategy ensemble --symbol SPY QQQ GLD TLT
   quantsim paper --strategy dual_momentum
-  
+
   # With portfolio optimization overlay
   quantsim paper --strategy tsmom --optimizer hrp --symbol SPY QQQ GLD TLT IWM
 
@@ -20,14 +20,14 @@ Alpaca credentials must be set:
   export ALPACA_SECRET_KEY=your_secret
 """
 
-import sys
-import os
-import asyncio
 import argparse
+import asyncio
 import logging
-from datetime import datetime, timezone
+import os
+import sys
 
 from quantsim.core.logging_config import setup_logging
+
 setup_logging()
 
 logger = logging.getLogger("paper_trading")
@@ -35,20 +35,28 @@ logger = logging.getLogger("paper_trading")
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="QuantSim Paper Trading")
-    parser.add_argument("--strategy", nargs="+", default=["sma"],
-                        help="Strategy name(s)")
-    parser.add_argument("--symbol", "--symbols", nargs="+", default=["SPY"],
-                        help="Symbol(s) to trade")
-    parser.add_argument("--capital", type=float, default=None,
-                        help="Initial capital (default: from config)")
-    parser.add_argument("--ensemble", action="store_true",
-                        help="Use ensemble aggregation for multiple strategies")
-    parser.add_argument("--ensemble-method", default="confidence_weighted",
-                        choices=["majority_vote", "confidence_weighted", "orthogonality_checked"],
-                        help="Signal aggregation method")
-    parser.add_argument("--optimizer", default=None,
-                        choices=["hrp", "risk_parity", "mean_variance", "black_litterman"],
-                        help="Portfolio optimization overlay (applied at rebalance)")
+    parser.add_argument("--strategy", nargs="+", default=["sma"], help="Strategy name(s)")
+    parser.add_argument(
+        "--symbol", "--symbols", nargs="+", default=["SPY"], help="Symbol(s) to trade"
+    )
+    parser.add_argument(
+        "--capital", type=float, default=None, help="Initial capital (default: from config)"
+    )
+    parser.add_argument(
+        "--ensemble", action="store_true", help="Use ensemble aggregation for multiple strategies"
+    )
+    parser.add_argument(
+        "--ensemble-method",
+        default="confidence_weighted",
+        choices=["majority_vote", "confidence_weighted", "orthogonality_checked"],
+        help="Signal aggregation method",
+    )
+    parser.add_argument(
+        "--optimizer",
+        default=None,
+        choices=["hrp", "risk_parity", "mean_variance", "black_litterman"],
+        help="Portfolio optimization overlay (applied at rebalance)",
+    )
     parser.add_argument("--db", default=None, help="Database path override")
     args = parser.parse_args(argv)
 
@@ -72,7 +80,7 @@ def main(argv=None):
 
     # Build strategies
     # Each strategy gets its own event queue initially; the engine will coordinate them
-    from quantsim.core.event_queue import EventQueue
+
     event_queue = EventQueue()
 
     strategies = []
@@ -95,6 +103,7 @@ def main(argv=None):
 
     # Build engine
     from quantsim.paper_trading.engine import PaperEngine
+
     engine = PaperEngine(
         strategies=strategies,
         initial_capital=args.capital,

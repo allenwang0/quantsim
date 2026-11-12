@@ -5,6 +5,7 @@ One seeded synthetic series with open == close on every bar, so a fill at bar
 T+1's open (event engine) and at bar T+1's price (vectorized) is the same
 trade. The series starts with a decline so both engines begin flat.
 """
+
 import numpy as np
 import pandas as pd
 

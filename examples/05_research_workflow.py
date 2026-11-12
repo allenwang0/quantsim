@@ -19,24 +19,27 @@ Run:
     python examples/05_research_workflow.py
 """
 
-import sys, os, tempfile
+import os
+import time
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from datetime import datetime
-import time
 
-from quantsim.core.logging_config import setup_logging
-from quantsim.core.database_v2 import init_full_db
-from quantsim.core.database import db_conn
-from quantsim.backtesting.vectorized import VectorizedBacktester, sma_crossover_signal, momentum_signal
-from quantsim.backtesting.walk_forward import WalkForwardOptimizer, RegimeAnalyzer
-from quantsim.strategies.trend import SMAcrossover
 from quantsim.backtesting.engine import BacktestEngine
 from quantsim.backtesting.execution import VolumeProportionalSlippage, ZeroCommission
+from quantsim.backtesting.vectorized import (
+    VectorizedBacktester,
+    sma_crossover_signal,
+)
+from quantsim.backtesting.walk_forward import RegimeAnalyzer, WalkForwardOptimizer
+from quantsim.core.database import db_conn
+from quantsim.core.database_v2 import init_full_db
 from quantsim.core.event_queue import EventQueue
-from quantsim.reporting.tearsheet import generate_tearsheet
+from quantsim.core.logging_config import setup_logging
 from quantsim.reporting.analytics import load_equity_curve_from_db
+from quantsim.reporting.tearsheet import generate_tearsheet
+from quantsim.strategies.trend import SMAcrossover
 
 setup_logging(level="WARNING")
 
@@ -55,7 +58,7 @@ np.random.seed(42)
 SYMBOLS = ["SPY", "QQQ", "GLD", "TLT", "IWM"]
 N_BARS = 756  # 3 years
 DRIFTS = [0.0004, 0.0005, 0.0001, -0.0001, 0.0003]
-VOLS   = [0.012, 0.015, 0.008, 0.006, 0.014]
+VOLS = [0.012, 0.015, 0.008, 0.006, 0.014]
 STARTS = [300, 350, 170, 120, 180]
 
 dates = pd.date_range("2018-01-02", periods=N_BARS, freq="B")
@@ -71,7 +74,7 @@ for sym, drift, vol, start in zip(SYMBOLS, DRIFTS, VOLS, STARTS):
                 "INSERT OR REPLACE INTO raw_bars "
                 "(asset_id,timestamp,open,high,low,close,volume,source) "
                 "VALUES (?,?,?,?,?,?,?,?)",
-                (sym, ts, p*0.998, p*1.005, p*0.995, p, 5_000_000, "synthetic"),
+                (sym, ts, p * 0.998, p * 1.005, p * 0.995, p, 5_000_000, "synthetic"),
             )
             conn.execute(
                 "INSERT OR REPLACE INTO adjustment_factors VALUES (?,?,1.0,0.0)",
@@ -103,11 +106,13 @@ elapsed = (time.perf_counter() - t0) * 1000
 print(f"  {len(sweep_df)} configs in {elapsed:.0f}ms")
 n_significant = (sweep_df["deflated_sharpe_corrected"] > 0.95).sum()
 print(f"  Statistically significant (DSR > 0.95): {n_significant}/{len(sweep_df)}")
-print(f"\n  Top 3 configurations:")
+print("\n  Top 3 configurations:")
 for _, row in sweep_df.head(3).iterrows():
-    print(f"    fast={int(row.fast)}, slow={int(row.slow)} | "
-          f"Sharpe={row.sharpe_ratio:.3f}, DSR={row.deflated_sharpe_corrected:.3f}, "
-          f"CAGR={row.cagr:+.2%}, MaxDD={row.max_drawdown:.2%}")
+    print(
+        f"    fast={int(row.fast)}, slow={int(row.slow)} | "
+        f"Sharpe={row.sharpe_ratio:.3f}, DSR={row.deflated_sharpe_corrected:.3f}, "
+        f"CAGR={row.cagr:+.2%}, MaxDD={row.max_drawdown:.2%}"
+    )
 
 if n_significant == 0:
     print("\n  ⚠ No significant configurations. Strategy may not be viable.")
@@ -147,17 +152,21 @@ for regime, count in regime_counts.items():
 print("\n── Step 5: Full backtest (event-driven, SPY only) ────────────────")
 eq = EventQueue()
 strategy = SMAcrossover(
-    asset_ids=["SPY"], event_queue=eq,
-    fast=best_params["fast"], slow=best_params["slow"],
+    asset_ids=["SPY"],
+    event_queue=eq,
+    fast=best_params["fast"],
+    slow=best_params["slow"],
     long_only=True,
 )
 engine = BacktestEngine(
     strategies=[strategy],
-    start=datetime(2018, 1, 2), end=datetime(2020, 6, 30),
+    start=datetime(2018, 1, 2),
+    end=datetime(2020, 6, 30),
     initial_capital=100_000,
     slippage_model=VolumeProportionalSlippage(k=0.05),
     commission_model=ZeroCommission(),
-    db_path=DB_PATH, verbose=False,
+    db_path=DB_PATH,
+    verbose=False,
     warmup_bars=max(best_params["slow"] + 10, 110),
 )
 results = engine.run()
@@ -183,10 +192,12 @@ if ec.empty or ec.std() == 0:
     # Use portfolio history fallback
     hist = engine.portfolio._equity_history
     if hist:
-        ts_list = [t.replace(tzinfo=None) if hasattr(t,'tzinfo') and t.tzinfo else t for t,_ in hist]
-        eq_list = [float(e) for _,e in hist]
+        ts_list = [
+            t.replace(tzinfo=None) if hasattr(t, "tzinfo") and t.tzinfo else t for t, _ in hist
+        ]
+        eq_list = [float(e) for _, e in hist]
         ec = pd.Series(eq_list, index=pd.DatetimeIndex(ts_list))
-        ec = ec[~ec.index.duplicated(keep='last')].sort_index()
+        ec = ec[~ec.index.duplicated(keep="last")].sort_index()
 
 if not ec.empty and ec.std() > 0:
     tearsheet_path = "/tmp/quantsim_research_workflow.html"
@@ -212,9 +223,11 @@ is_viable = (
 )
 status = "✓ VIABLE — proceed to paper trading" if is_viable else "✗ NOT VIABLE — revisit hypothesis"
 print(f"  {status}")
-print(f"  IS Sharpe: {results.get('sharpe_ratio',0):.3f}  "
-      f"OOS Sharpe: {wfo_results['avg_oos_sharpe']:.3f}  "
-      f"DSR: {wfo_results['deflated_sharpe_corrected']:.3f}")
+print(
+    f"  IS Sharpe: {results.get('sharpe_ratio', 0):.3f}  "
+    f"OOS Sharpe: {wfo_results['avg_oos_sharpe']:.3f}  "
+    f"DSR: {wfo_results['deflated_sharpe_corrected']:.3f}"
+)
 print()
 print("  Next step: paper trade for 30+ days before risking real capital.")
 print("  Command: quantsim paper --strategy sma --symbol SPY")

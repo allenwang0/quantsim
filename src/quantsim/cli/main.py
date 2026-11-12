@@ -1,12 +1,25 @@
 """quantsim command-line entry point: quantsim <command> [options]."""
+
 import importlib
 import sys
 
 COMMANDS = {
-    "backtest": ("quantsim.cli.backtest", "Run an event-driven, vectorized, sweep or walk-forward backtest"),
-    "wfo": ("quantsim.cli.wfo", "Walk-forward optimization or parameter sweep on a signal function"),
-    "paper": ("quantsim.cli.paper", "Paper trading through Alpaca, or simulated fills without keys"),
-    "bootstrap": ("quantsim.cli.bootstrap", "Download price and macro history into the local database"),
+    "backtest": (
+        "quantsim.cli.backtest",
+        "Run an event-driven, vectorized, sweep or walk-forward backtest",
+    ),
+    "wfo": (
+        "quantsim.cli.wfo",
+        "Walk-forward optimization or parameter sweep on a signal function",
+    ),
+    "paper": (
+        "quantsim.cli.paper",
+        "Paper trading through Alpaca, or simulated fills without keys",
+    ),
+    "bootstrap": (
+        "quantsim.cli.bootstrap",
+        "Download price and macro history into the local database",
+    ),
     "stress": ("quantsim.cli.stress", "Run a strategy over historical stress periods"),
 }
 

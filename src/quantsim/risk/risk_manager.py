@@ -5,15 +5,13 @@ Emits RiskEvents when limits are breached.
 """
 
 from __future__ import annotations
-import json
+
 import logging
 from datetime import datetime
 from typing import Optional
 
-from quantsim.core.events import (
-    SignalEvent, OrderEvent, RiskEvent, RiskEventType, Direction
-)
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import Direction, OrderEvent, RiskEvent, RiskEventType, SignalEvent
 from quantsim.portfolio.portfolio import Portfolio
 
 logger = logging.getLogger(__name__)
@@ -22,7 +20,7 @@ logger = logging.getLogger(__name__)
 class RiskManager:
     """
     Risk management overlays that operate across all strategies.
-    
+
     Limits enforced:
     - Max drawdown circuit breaker (halt opens, then close all)
     - Concentration: no single position > max_position_pct
@@ -33,12 +31,12 @@ class RiskManager:
     def __init__(
         self,
         event_queue: EventQueue,
-        max_drawdown_halt: float = -0.15,    # halt new opens at -15%
-        max_drawdown_close: float = -0.20,   # close all positions at -20%
-        max_position_pct: float = 0.10,      # max 10% in any single name
+        max_drawdown_halt: float = -0.15,  # halt new opens at -15%
+        max_drawdown_close: float = -0.20,  # close all positions at -20%
+        max_position_pct: float = 0.10,  # max 10% in any single name
         max_portfolio_delta: float = 100.0,  # in delta-equivalent shares
         max_portfolio_vega: float = 1000.0,  # $ per 1% IV move
-        max_portfolio_gamma: float = 50.0,   # delta per $1 move
+        max_portfolio_gamma: float = 50.0,  # delta per $1 move
         db_path: Optional[str] = None,
     ):
         self._queue = event_queue
@@ -99,9 +97,7 @@ class RiskManager:
         """
         from quantsim.core.events import OrderSide
 
-        is_open = order.side in (
-            OrderSide.BUY, OrderSide.BUY_TO_OPEN, OrderSide.SELL_TO_OPEN
-        )
+        is_open = order.side in (OrderSide.BUY, OrderSide.BUY_TO_OPEN, OrderSide.SELL_TO_OPEN)
 
         if not is_open:
             return True  # closing orders always pass
@@ -109,11 +105,15 @@ class RiskManager:
         # Concentration check
         equity = portfolio.total_equity
         if equity > 0:
-            order_value = (order.quantity * (order.limit_price or 0)) 
+            order_value = order.quantity * (order.limit_price or 0)
             if order_value == 0 and equity > 0:
                 order_value = equity * 0.02  # conservative estimate
             projected_weight = (
-                abs(portfolio.positions.get(order.asset_id, type('', (), {'market_value': 0})()).market_value)
+                abs(
+                    portfolio.positions.get(
+                        order.asset_id, type("", (), {"market_value": 0})()
+                    ).market_value
+                )
                 + order_value
             ) / equity
 
@@ -123,7 +123,8 @@ class RiskManager:
                     f"{projected_weight:.1%} > {self.max_position_pct:.1%}"
                 )
                 self._emit_risk(
-                    portfolio, RiskEventType.CONCENTRATION_BREACH,
+                    portfolio,
+                    RiskEventType.CONCENTRATION_BREACH,
                     f"{order.asset_id} concentration {projected_weight:.1%} exceeds limit",
                 )
                 return False
@@ -131,13 +132,15 @@ class RiskManager:
         # Greeks limits check
         if abs(portfolio.portfolio_delta) > self.max_portfolio_delta:
             self._emit_risk(
-                portfolio, RiskEventType.GREEKS_BREACH,
+                portfolio,
+                RiskEventType.GREEKS_BREACH,
                 f"Portfolio delta {portfolio.portfolio_delta:.1f} exceeds {self.max_portfolio_delta}",
             )
 
         if abs(portfolio.portfolio_vega) > self.max_portfolio_vega:
             self._emit_risk(
-                portfolio, RiskEventType.GREEKS_BREACH,
+                portfolio,
+                RiskEventType.GREEKS_BREACH,
                 f"Portfolio vega {portfolio.portfolio_vega:.1f} exceeds {self.max_portfolio_vega}",
             )
 
@@ -177,6 +180,7 @@ class RiskManager:
     def _persist_alert(self, event: RiskEvent) -> None:
         try:
             from quantsim.core.database import db_conn
+
             ts_epoch = int(event.timestamp.timestamp())
             with db_conn(self._db_path) as conn:
                 conn.execute(
@@ -192,7 +196,9 @@ def log_portfolio_greeks(portfolio, db_path: str, timestamp: int) -> None:
     """Log portfolio-level Greeks to the options_greeks_log table."""
     try:
         from quantsim.core.database_v2 import log_options_greeks
+
         log_options_greeks(db_path=db_path, timestamp=timestamp, portfolio=portfolio)
     except Exception as e:
         import logging
+
         logging.getLogger(__name__).debug(f"Greeks logging failed: {e}")

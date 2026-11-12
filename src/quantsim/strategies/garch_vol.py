@@ -21,9 +21,11 @@ In practice at quant firms:
 """
 
 from __future__ import annotations
+
 import logging
 import warnings
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
 
@@ -31,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from arch import arch_model
+
     ARCH_AVAILABLE = True
 except ImportError:
     ARCH_AVAILABLE = False
@@ -40,21 +43,21 @@ except ImportError:
 class GARCHForecaster:
     """
     GARCH(1,1) volatility forecaster.
-    
+
     Used as a drop-in replacement for rolling realized vol in:
     - VolatilityTargetSizer: position sizing
     - Regime detection: identify vol regimes more accurately
     - Options premium selling: entry timing based on IV vs GARCH-forecast vol
-    
+
     Fit window: 252-504 bars (1-2 years of daily data)
     Refit frequency: every 21 bars (monthly) to adapt to regime changes
     Forecast horizon: 1-5 bars ahead (most useful for daily strategies)
-    
+
     GARCH(1,1) model:
         r_t = mu + epsilon_t
         epsilon_t = sigma_t * z_t, z_t ~ N(0,1)
         sigma^2_t = omega + alpha * epsilon^2_{t-1} + beta * sigma^2_{t-1}
-    
+
     Stationarity constraint: alpha + beta < 1 (enforced by optimizer)
     Long-run variance: omega / (1 - alpha - beta)
     """
@@ -98,7 +101,8 @@ class GARCHForecaster:
                 model = arch_model(
                     scaled,
                     vol="Garch",
-                    p=1, q=1,
+                    p=1,
+                    q=1,
                     mean="constant",
                     dist="normal",
                 )
@@ -167,14 +171,14 @@ class GARCHForecaster:
         """
         Update the model with new data if refit is due.
         Returns current volatility forecast.
-        
+
         Call this on every new bar.
         """
         self._bars_since_fit += 1
 
         # Refit periodically
         if self._bars_since_fit >= self.refit_every or self._fitted_result is None:
-            recent = returns.iloc[-self.fit_window:]
+            recent = returns.iloc[-self.fit_window :]
             self.fit(recent)
             self._bars_since_fit = 0
 
@@ -183,7 +187,7 @@ class GARCHForecaster:
     def leverage_for_target_vol(self, forecast_vol: Optional[float] = None) -> float:
         """
         Compute position leverage multiplier to achieve target vol.
-        
+
         target_leverage = target_vol / forecast_vol
         Capped at [0.25, 2.0] for safety.
         """
@@ -209,7 +213,7 @@ class GARCHForecaster:
 class GARCHVolatilityAdapter:
     """
     Adapter that wraps GARCHForecaster for use in the event-driven engine.
-    
+
     Maintains one GARCHForecaster per asset.
     Called by the VolatilityTargetSizer and regime detection.
     """
@@ -233,8 +237,7 @@ class GARCHVolatilityAdapter:
         self._return_history[asset_id].append(return_value)
         # Cap history
         if len(self._return_history[asset_id]) > self.fit_window * 3:
-            self._return_history[asset_id] = \
-                self._return_history[asset_id][-self.fit_window * 2:]
+            self._return_history[asset_id] = self._return_history[asset_id][-self.fit_window * 2 :]
 
     def get_vol_forecast(self, asset_id: str) -> float:
         """Get the current GARCH volatility forecast for an asset."""
@@ -264,10 +267,7 @@ class GARCHVolatilityAdapter:
 
     def get_all_forecasts(self) -> Dict[str, float]:
         """Get current vol forecasts for all tracked assets."""
-        return {
-            asset_id: self.get_vol_forecast(asset_id)
-            for asset_id in self._return_history
-        }
+        return {asset_id: self.get_vol_forecast(asset_id) for asset_id in self._return_history}
 
     def portfolio_vol_forecast(self, weights: Dict[str, float]) -> float:
         """
@@ -275,7 +275,6 @@ class GARCHVolatilityAdapter:
         Assumes zero correlation (upper bound on diversification benefit).
         """
         portfolio_var = sum(
-            (w ** 2) * (self.get_vol_forecast(asset) ** 2)
-            for asset, w in weights.items()
+            (w**2) * (self.get_vol_forecast(asset) ** 2) for asset, w in weights.items()
         )
         return float(np.sqrt(portfolio_var))

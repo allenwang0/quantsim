@@ -14,13 +14,12 @@ Usage:
     --train-years 4 --test-months 12 --regime-analysis
 """
 
-import sys
-import os
 import argparse
 import json
 import logging
+import os
+import sys
 from datetime import datetime
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,47 +30,87 @@ logger = logging.getLogger("wfo")
 
 
 SIGNAL_REGISTRY = {
-    "sma": ("quantsim.backtesting.vectorized", "sma_crossover_signal", {"fast": [10, 20, 50], "slow": [100, 150, 200]}),
-    "ema": ("quantsim.backtesting.vectorized", "sma_crossover_signal", {"fast": [8, 12, 20], "slow": [26, 50, 100]}),
-    "rsi": ("quantsim.backtesting.vectorized", "rsi_signal", {"period": [10, 14, 21], "oversold": [25, 30], "overbought": [70, 75]}),
-    "momentum": ("quantsim.backtesting.vectorized", "momentum_signal", {"lookback": [126, 189, 252], "skip": [21]}),
-    "bollinger": ("quantsim.backtesting.vectorized", "bollinger_signal", {"window": [10, 15, 20, 25], "k": [1.5, 2.0, 2.5]}),
-    "donchian": ("quantsim.backtesting.vectorized", "donchian_signal", {"period": [15, 20, 30, 55]}),
+    "sma": (
+        "quantsim.backtesting.vectorized",
+        "sma_crossover_signal",
+        {"fast": [10, 20, 50], "slow": [100, 150, 200]},
+    ),
+    "ema": (
+        "quantsim.backtesting.vectorized",
+        "sma_crossover_signal",
+        {"fast": [8, 12, 20], "slow": [26, 50, 100]},
+    ),
+    "rsi": (
+        "quantsim.backtesting.vectorized",
+        "rsi_signal",
+        {"period": [10, 14, 21], "oversold": [25, 30], "overbought": [70, 75]},
+    ),
+    "momentum": (
+        "quantsim.backtesting.vectorized",
+        "momentum_signal",
+        {"lookback": [126, 189, 252], "skip": [21]},
+    ),
+    "bollinger": (
+        "quantsim.backtesting.vectorized",
+        "bollinger_signal",
+        {"window": [10, 15, 20, 25], "k": [1.5, 2.0, 2.5]},
+    ),
+    "donchian": (
+        "quantsim.backtesting.vectorized",
+        "donchian_signal",
+        {"period": [15, 20, 30, 55]},
+    ),
 }
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="QuantSim Walk-Forward Optimizer")
-    parser.add_argument("--mode", default="wfo",
-                        choices=["wfo", "sweep"],
-                        help="wfo = rolling walk-forward; sweep = single-period parameter sweep")
-    parser.add_argument("--signal", default="sma", choices=list(SIGNAL_REGISTRY.keys()),
-                        help="Signal function to optimize")
-    parser.add_argument("--symbol", "--symbols", nargs="+", default=["SPY"],
-                        help="Symbol(s)")
+    parser.add_argument(
+        "--mode",
+        default="wfo",
+        choices=["wfo", "sweep"],
+        help="wfo = rolling walk-forward; sweep = single-period parameter sweep",
+    )
+    parser.add_argument(
+        "--signal",
+        default="sma",
+        choices=list(SIGNAL_REGISTRY.keys()),
+        help="Signal function to optimize",
+    )
+    parser.add_argument("--symbol", "--symbols", nargs="+", default=["SPY"], help="Symbol(s)")
     parser.add_argument("--start", default="2010-01-01", help="Historical data start")
     parser.add_argument("--end", default=None, help="Historical data end")
-    parser.add_argument("--train-years", type=float, default=3.0,
-                        help="Training window in years (WFO mode)")
-    parser.add_argument("--test-months", type=int, default=12,
-                        help="Test window in months (WFO mode)")
-    parser.add_argument("--step-months", type=int, default=6,
-                        help="Step size in months (WFO mode)")
+    parser.add_argument(
+        "--train-years", type=float, default=3.0, help="Training window in years (WFO mode)"
+    )
+    parser.add_argument(
+        "--test-months", type=int, default=12, help="Test window in months (WFO mode)"
+    )
+    parser.add_argument("--step-months", type=int, default=6, help="Step size in months (WFO mode)")
     parser.add_argument("--capital", type=float, default=100_000)
-    parser.add_argument("--commission", type=float, default=0.001,
-                        help="Commission rate (0.001 = 0.1%%)")
-    parser.add_argument("--slippage", type=float, default=0.001,
-                        help="Slippage rate (0.001 = 0.1%%)")
-    parser.add_argument("--param", nargs="+", action="append", metavar=("KEY", "VALUES"),
-                        help="Custom parameter: --param fast 10 20 50")
-    parser.add_argument("--regime-analysis", action="store_true",
-                        help="Analyze performance across market regimes")
+    parser.add_argument(
+        "--commission", type=float, default=0.001, help="Commission rate (0.001 = 0.1%%)"
+    )
+    parser.add_argument(
+        "--slippage", type=float, default=0.001, help="Slippage rate (0.001 = 0.1%%)"
+    )
+    parser.add_argument(
+        "--param",
+        nargs="+",
+        action="append",
+        metavar=("KEY", "VALUES"),
+        help="Custom parameter: --param fast 10 20 50",
+    )
+    parser.add_argument(
+        "--regime-analysis", action="store_true", help="Analyze performance across market regimes"
+    )
     parser.add_argument("--db", default=None, help="Database path override")
     parser.add_argument("--output", default=None, help="Save results to JSON file")
     args = parser.parse_args(argv)
 
     from quantsim.core.config import config
     from quantsim.core.database_v2 import init_full_db
+
     db_path = args.db or config.db_path
     if args.db:
         os.environ["QUANTSIM_DB"] = args.db
@@ -79,8 +118,9 @@ def main(argv=None):
 
     # Load data
     logger.info(f"Loading data for {args.symbol} from {args.start}...")
-    from quantsim.data.ingestion import get_bars
     import pandas as pd
+
+    from quantsim.data.ingestion import get_bars
 
     end = datetime.strptime(args.end, "%Y-%m-%d") if args.end else datetime.utcnow()
     start = datetime.strptime(args.start, "%Y-%m-%d")
@@ -95,7 +135,9 @@ def main(argv=None):
             logger.warning(f"No data for {sym} - run bootstrap_data.py first")
 
     if not price_dict:
-        logger.error("No price data loaded. Run: quantsim bootstrap --symbols " + " ".join(args.symbol))
+        logger.error(
+            "No price data loaded. Run: quantsim bootstrap --symbols " + " ".join(args.symbol)
+        )
         sys.exit(1)
 
     prices = pd.DataFrame(price_dict).dropna(how="all")
@@ -104,6 +146,7 @@ def main(argv=None):
     # Build signal function and param grid
     module_name, fn_name, default_grid = SIGNAL_REGISTRY[args.signal]
     import importlib
+
     module = importlib.import_module(module_name)
     signal_fn = getattr(module, fn_name)
 
@@ -129,6 +172,7 @@ def main(argv=None):
         # Fast vectorized parameter sweep
         logger.info("Running vectorized parameter sweep...")
         from quantsim.backtesting.vectorized import VectorizedBacktester
+
         bt = VectorizedBacktester(
             prices=prices,
             initial_capital=args.capital,
@@ -136,9 +180,18 @@ def main(argv=None):
             slippage_pct=args.slippage,
         )
         results_df = bt.parameter_sweep(signal_fn, param_grid, benchmark=benchmark)
-        logger.info(f"\nTop 5 configurations (by Deflated Sharpe):")
-        cols = [c for c in ["deflated_sharpe_corrected", "sharpe_ratio", "cagr",
-                             "max_drawdown", "calmar_ratio"] if c in results_df.columns]
+        logger.info("\nTop 5 configurations (by Deflated Sharpe):")
+        cols = [
+            c
+            for c in [
+                "deflated_sharpe_corrected",
+                "sharpe_ratio",
+                "cagr",
+                "max_drawdown",
+                "calmar_ratio",
+            ]
+            if c in results_df.columns
+        ]
         cols = list(param_grid.keys()) + cols
         print(results_df[cols].head(5).to_string(index=False))
 
@@ -150,7 +203,8 @@ def main(argv=None):
             f"Running WFO: train={args.train_years}yr, "
             f"test={args.test_months}mo, step={args.step_months}mo"
         )
-        from quantsim.backtesting.walk_forward import WalkForwardOptimizer, RegimeAnalyzer
+        from quantsim.backtesting.walk_forward import RegimeAnalyzer, WalkForwardOptimizer
+
         wfo = WalkForwardOptimizer(
             prices=prices,
             train_years=args.train_years,
@@ -192,30 +246,33 @@ def main(argv=None):
 
     # Save output
     # Persist WFO results to database
-    if results_dict.get('window_results'):
+    if results_dict.get("window_results"):
         try:
             import uuid
+
             from quantsim.core.database_v2 import log_wfo_result
-            for w in results_dict.get('window_results', []):
+
+            for w in results_dict.get("window_results", []):
                 if isinstance(w, dict):
                     log_wfo_result(
                         db_path=db_path,
                         result_id=str(uuid.uuid4()),
                         strategy_id=args.signal,
                         window=w,
-                        best_params=w.get('best_params', {}),
+                        best_params=w.get("best_params", {}),
                         metrics=w,
                     )
         except Exception as e:
-            logger.warning(f'WFO persistence failed: {e}')
+            logger.warning(f"WFO persistence failed: {e}")
 
     if args.output:
+
         def clean(obj):
             if isinstance(obj, dict):
                 return {k: clean(v) for k, v in obj.items()}
             elif isinstance(obj, list):
                 return [clean(v) for v in obj]
-            elif hasattr(obj, 'isoformat'):
+            elif hasattr(obj, "isoformat"):
                 return obj.isoformat()
             elif isinstance(obj, (int, float, str, bool, type(None))):
                 return obj

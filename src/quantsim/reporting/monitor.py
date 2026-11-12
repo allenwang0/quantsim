@@ -16,12 +16,12 @@ The dashboard reads risk_alerts and shows banners.
 """
 
 from __future__ import annotations
+
 import logging
-import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional
+
 import numpy as np
-import pandas as pd
 
 from quantsim.core.config import config
 
@@ -171,9 +171,13 @@ class StrategyHealthMonitor:
         """Check if ML model IC has dropped below the minimum threshold."""
         try:
             from quantsim.core.database import db_conn
-            rows = db_conn(self.db_path).__enter__().execute(
-                "SELECT ic FROM ml_ic_history ORDER BY eval_date DESC LIMIT 12"
-            ).fetchall()
+
+            rows = (
+                db_conn(self.db_path)
+                .__enter__()
+                .execute("SELECT ic FROM ml_ic_history ORDER BY eval_date DESC LIMIT 12")
+                .fetchall()
+            )
             if rows and len(rows) >= 3:
                 ic_values = [r["ic"] for r in rows]
                 rolling_ic = float(np.mean(ic_values))
@@ -195,6 +199,7 @@ class StrategyHealthMonitor:
         """Check if GARCH-forecast volatility has spiked significantly."""
         try:
             from quantsim.core.database import db_conn
+
             with db_conn(self.db_path) as conn:
                 rows = conn.execute(
                     "SELECT asset_id, forecast_vol FROM garch_forecasts ORDER BY timestamp DESC LIMIT 50"
@@ -213,7 +218,7 @@ class StrategyHealthMonitor:
                     alert = self._make_alert(
                         key=f"volspike_{asset_id}_{timestamp.date()}",
                         risk_type="VOLATILITY_SPIKE",
-                        message=f"{asset_id} GARCH vol {current_vol:.1%} is {current_vol/baseline:.1f}x baseline {baseline:.1%}. Consider reducing exposure.",
+                        message=f"{asset_id} GARCH vol {current_vol:.1%} is {current_vol / baseline:.1f}x baseline {baseline:.1%}. Consider reducing exposure.",
                         severity="WARNING",
                         timestamp=timestamp,
                     )
@@ -253,6 +258,7 @@ class StrategyHealthMonitor:
     def _persist_alert(self, alert: Dict) -> None:
         try:
             from quantsim.core.database import db_conn
+
             with db_conn(self.db_path) as conn:
                 conn.execute(
                     "INSERT INTO risk_alerts (timestamp, risk_type, message, severity) VALUES (?, ?, ?, ?)",
@@ -264,6 +270,7 @@ class StrategyHealthMonitor:
     async def run_async(self, portfolio, interval_seconds: int = 60) -> None:
         """Run health monitoring as an asyncio coroutine (paper trading mode)."""
         import asyncio
+
         while True:
             try:
                 alerts = self.check_all(portfolio, datetime.utcnow())

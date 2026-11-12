@@ -21,12 +21,13 @@ This module implements:
 """
 
 from __future__ import annotations
+
+import itertools
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable, Tuple, Any
+from typing import Callable, Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-import itertools
 
 logger = logging.getLogger(__name__)
 
@@ -34,21 +35,21 @@ logger = logging.getLogger(__name__)
 class WalkForwardOptimizer:
     """
     Rolling Walk-Forward Optimization.
-    
+
     Protocol (per Bailey et al. and Lopez de Prado):
     1. Divide history into sequential windows
     2. For each window: optimize on train period, evaluate on test period
     3. Report ONLY out-of-sample (test) performance
     4. Aggregate test periods to build full OOS equity curve
-    
+
     Window structure:
     [────────── TRAIN (3yr) ──────────][GAP (0)][TEST (1yr)]
                                                    ↕ advance by step
-    
+
     The gap prevents lookahead from the training period's end
-    contaminating the test period (e.g., from GARCH models trained 
+    contaminating the test period (e.g., from GARCH models trained
     on data that includes the test period's volatility regime).
-    
+
     CRITICAL: Never aggregate in-sample periods to evaluate strategy.
     The reported Sharpe must come entirely from OOS periods.
     """
@@ -86,13 +87,15 @@ class WalkForwardOptimizer:
             if test_end_idx >= n:
                 break
 
-            windows.append({
-                "train_start": self.prices.index[train_start_idx],
-                "train_end": self.prices.index[train_end_idx],
-                "test_start": self.prices.index[test_start_idx],
-                "test_end": self.prices.index[min(test_end_idx, n-1)],
-                "window_id": len(windows),
-            })
+            windows.append(
+                {
+                    "train_start": self.prices.index[train_start_idx],
+                    "train_end": self.prices.index[train_end_idx],
+                    "test_start": self.prices.index[test_start_idx],
+                    "test_end": self.prices.index[min(test_end_idx, n - 1)],
+                    "window_id": len(windows),
+                }
+            )
             start += self.step_bars
 
         logger.info(f"Generated {len(windows)} walk-forward windows")
@@ -110,7 +113,7 @@ class WalkForwardOptimizer:
     ) -> Dict:
         """
         Run walk-forward optimization with parameter grid.
-        
+
         Returns:
         - oos_equity_curve: concatenated out-of-sample equity
         - oos_analytics: performance metrics on OOS periods only
@@ -134,8 +137,8 @@ class WalkForwardOptimizer:
         n_oos_obs = 0
 
         for window in windows:
-            train_prices = self.prices.loc[window["train_start"]:window["train_end"]]
-            test_prices = self.prices.loc[window["test_start"]:window["test_end"]]
+            train_prices = self.prices.loc[window["train_start"] : window["train_end"]]
+            test_prices = self.prices.loc[window["test_start"] : window["test_end"]]
 
             # Step 1: Find best parameters on training period
             best_params = None
@@ -183,19 +186,21 @@ class WalkForwardOptimizer:
                 test_result = {}
                 oos_equity = pd.Series([initial_capital])
 
-            window_results.append({
-                "window_id": window["window_id"],
-                "train_start": window["train_start"],
-                "train_end": window["train_end"],
-                "test_start": window["test_start"],
-                "test_end": window["test_end"],
-                "best_params": best_params,
-                "train_best_sharpe": best_objective_val,
-                "oos_sharpe": test_result.get("sharpe_ratio", 0),
-                "oos_return": test_result.get("total_return", 0),
-                "oos_max_dd": test_result.get("max_drawdown", 0),
-                "oos_calmar": test_result.get("calmar_ratio", 0),
-            })
+            window_results.append(
+                {
+                    "window_id": window["window_id"],
+                    "train_start": window["train_start"],
+                    "train_end": window["train_end"],
+                    "test_start": window["test_start"],
+                    "test_end": window["test_end"],
+                    "best_params": best_params,
+                    "train_best_sharpe": best_objective_val,
+                    "oos_sharpe": test_result.get("sharpe_ratio", 0),
+                    "oos_return": test_result.get("total_return", 0),
+                    "oos_max_dd": test_result.get("max_drawdown", 0),
+                    "oos_calmar": test_result.get("calmar_ratio", 0),
+                }
+            )
             oos_equities.append(oos_equity)
 
         # Aggregate OOS results
@@ -211,6 +216,7 @@ class WalkForwardOptimizer:
 
         # Apply Deflated Sharpe for multiple comparisons
         from quantsim.reporting.analytics import TRADING_DAYS_PER_YEAR, deflated_sharpe_ratio
+
         per_period_trials = np.asarray(trial_sharpes, dtype=float) / np.sqrt(TRADING_DAYS_PER_YEAR)
         dsr = deflated_sharpe_ratio(
             sharpe=avg_oos_sharpe / np.sqrt(TRADING_DAYS_PER_YEAR),
@@ -241,7 +247,9 @@ class WalkForwardOptimizer:
             "n_configs_tested": n_configs,
             "total_configs_tested": n_configs * len(windows),
             "most_stable_params": most_stable_params,
-            "oos_win_rate": float((results_df["oos_sharpe"] > 0).mean()) if len(results_df) > 0 else 0,
+            "oos_win_rate": float((results_df["oos_sharpe"] > 0).mean())
+            if len(results_df) > 0
+            else 0,
             "summary": {
                 "pass": dsr > 0.95 and avg_oos_sharpe > 0.3,
                 "warning": sharpe_degradation > 0.5,
@@ -258,13 +266,13 @@ class WalkForwardOptimizer:
 class RegimeAnalyzer:
     """
     Analyze strategy performance across market regimes.
-    
+
     Regimes defined by:
     - VIX level (low/medium/high volatility)
     - Trend vs. range-bound (ADX)
     - Bull/bear market (relative to 200-day MA)
     - Credit conditions (HY spread)
-    
+
     A strategy that looks good overall but only works in one regime
     is fragile and will fail in live trading when the regime changes.
     This is one of the most common failures of retail quant strategies.
@@ -310,6 +318,7 @@ class RegimeAnalyzer:
         A robust strategy should have positive Sharpe across most regimes.
         """
         from quantsim.reporting.analytics import PerformanceAnalytics
+
         analytics = PerformanceAnalytics()
 
         results = []
@@ -321,14 +330,16 @@ class RegimeAnalyzer:
                 continue
 
             regime_results = analytics.compute_all(regime_equity)
-            results.append({
-                "regime": regime,
-                "n_days": len(regime_equity),
-                "sharpe": regime_results.get("sharpe_ratio", 0),
-                "cagr": regime_results.get("cagr", 0),
-                "max_drawdown": regime_results.get("max_drawdown", 0),
-                "calmar": regime_results.get("calmar_ratio", 0),
-            })
+            results.append(
+                {
+                    "regime": regime,
+                    "n_days": len(regime_equity),
+                    "sharpe": regime_results.get("sharpe_ratio", 0),
+                    "cagr": regime_results.get("cagr", 0),
+                    "max_drawdown": regime_results.get("max_drawdown", 0),
+                    "calmar": regime_results.get("calmar_ratio", 0),
+                }
+            )
 
         return pd.DataFrame(results).set_index("regime")
 

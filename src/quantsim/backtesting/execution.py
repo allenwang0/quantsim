@@ -6,24 +6,22 @@ The BacktestExecutionHandler is the ONLY module that differs from paper trading.
 """
 
 from __future__ import annotations
+
 import logging
 import random
-import json
-import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
+
 import numpy as np
 
-from quantsim.core.events import (
-    OrderEvent, FillEvent, OrderSide, OrderType, AssetType, EventType
-)
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import AssetType, FillEvent, OrderEvent, OrderSide, OrderType
 
 logger = logging.getLogger(__name__)
 
 
 # ── Slippage Models ────────────────────────────────────────────────────────────
+
 
 class SlippageModel(ABC):
     @abstractmethod
@@ -41,6 +39,7 @@ class SlippageModel(ABC):
 
 class NoSlippage(SlippageModel):
     """Model 1: Fill at close price. Unrealistic ceiling."""
+
     def compute_slippage(self, price, quantity, bar_volume, adv_20, asset_type):
         return 0.0
 
@@ -48,8 +47,12 @@ class NoSlippage(SlippageModel):
 class FixedSpreadSlippage(SlippageModel):
     """Model 2: Fixed spread in basis points. Simple parametric model."""
 
-    def __init__(self, spread_bps_large: float = 5.0, spread_bps_small: float = 20.0,
-                 large_cap_threshold_adv: float = 1_000_000):
+    def __init__(
+        self,
+        spread_bps_large: float = 5.0,
+        spread_bps_small: float = 20.0,
+        large_cap_threshold_adv: float = 1_000_000,
+    ):
         self.spread_bps_large = spread_bps_large
         self.spread_bps_small = spread_bps_small
         self.threshold = large_cap_threshold_adv
@@ -63,7 +66,7 @@ class VolumeProportionalSlippage(SlippageModel):
     """
     Model 3 (RECOMMENDED DEFAULT): Almgren-Chriss inspired market impact.
     slippage = price * k * (order_size / ADV)^0.5
-    
+
     Orders < 1% of ADV: roughly bid-ask spread only.
     Orders > 10% of ADV: significant price impact.
     """
@@ -96,20 +99,24 @@ class OptionsBidAskSlippage(SlippageModel):
 
 # ── Commission Models ──────────────────────────────────────────────────────────
 
+
 class CommissionModel(ABC):
     @abstractmethod
-    def compute_commission(self, quantity: int, fill_price: float, asset_type: AssetType) -> float:
-        ...
+    def compute_commission(
+        self, quantity: int, fill_price: float, asset_type: AssetType
+    ) -> float: ...
 
 
 class ZeroCommission(CommissionModel):
     """IBKR Lite / Schwab / Fidelity for equities."""
+
     def compute_commission(self, quantity, fill_price, asset_type):
         return 0.0
 
 
 class PerShareCommission(CommissionModel):
     """IBKR Pro default: $0.005/share, $1.00 minimum."""
+
     def __init__(self, rate: float = 0.005, minimum: float = 1.0):
         self.rate = rate
         self.minimum = minimum
@@ -122,6 +129,7 @@ class PerShareCommission(CommissionModel):
 
 class PerContractOptionsCommission(CommissionModel):
     """Standard options commissions: $0.65/contract."""
+
     def __init__(self, rate: float = 0.65, minimum: float = 1.00):
         self.rate = rate
         self.minimum = minimum
@@ -134,16 +142,17 @@ class PerContractOptionsCommission(CommissionModel):
 
 # ── Fill Models ────────────────────────────────────────────────────────────────
 
+
 class FillModel:
     """
     Determines the fill price for a given order and bar data.
     Default: NEXT_BAR_OPEN (correct for daily-bar strategies).
     """
 
-    IMMEDIATE_CLOSE = "IMMEDIATE_CLOSE"   # fills at close (unrealistic baseline)
-    NEXT_BAR_OPEN = "NEXT_BAR_OPEN"      # correct default for daily strategies
-    VWAP = "VWAP"                         # (o + h + l + c) / 4
-    PARTIAL = "PARTIAL"                   # probabilistic partial fills
+    IMMEDIATE_CLOSE = "IMMEDIATE_CLOSE"  # fills at close (unrealistic baseline)
+    NEXT_BAR_OPEN = "NEXT_BAR_OPEN"  # correct default for daily strategies
+    VWAP = "VWAP"  # (o + h + l + c) / 4
+    PARTIAL = "PARTIAL"  # probabilistic partial fills
 
     def __init__(self, mode: str = NEXT_BAR_OPEN, partial_threshold: float = 0.10):
         self.mode = mode
@@ -202,10 +211,10 @@ class FillModel:
 
 # ── Execution Handlers ─────────────────────────────────────────────────────────
 
+
 class ExecutionHandler(ABC):
     @abstractmethod
-    def execute_order(self, order: OrderEvent) -> Optional[FillEvent]:
-        ...
+    def execute_order(self, order: OrderEvent) -> Optional[FillEvent]: ...
 
 
 class BacktestExecutionHandler(ExecutionHandler):
@@ -303,7 +312,9 @@ class BacktestExecutionHandler(ExecutionHandler):
         # Options: apply bid-ask spread cost (half-spread per leg)
         if order.asset_type == AssetType.OPTION:
             options_slippage = OptionsBidAskSlippage()
-            ba_cost = options_slippage.compute_slippage(adjusted_price, quantity, 0, adv, order.asset_type)
+            ba_cost = options_slippage.compute_slippage(
+                adjusted_price, quantity, 0, adv, order.asset_type
+            )
             adjusted_price = adjusted_price + ba_cost if is_buy else adjusted_price - ba_cost
 
         commission = self._commission.compute_commission(quantity, adjusted_price, order.asset_type)

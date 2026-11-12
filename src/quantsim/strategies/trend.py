@@ -11,15 +11,17 @@ Trend strategies: SMA crossover, EMA crossover, MACD, Donchian, ADX-filtered, TS
 """
 
 from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
 
-from quantsim.core.events import BarEvent, SignalEvent, Direction
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, Direction, SignalEvent
 from quantsim.data.data_handler import DataHandler
 
 logger = logging.getLogger(__name__)
@@ -28,10 +30,10 @@ logger = logging.getLogger(__name__)
 class Strategy(ABC):
     """
     Abstract base class for all strategies.
-    
+
     Lifecycle:
       on_bar(event, data_handler) → emits SignalEvent(s) if signal conditions met
-    
+
     Invariant: only call data_handler.get_latest_bars() which enforces T-1 data access.
     Never use the current bar's price for signal generation.
     """
@@ -85,14 +87,15 @@ class Strategy(ABC):
 
 # ── Trend Following ────────────────────────────────────────────────────────────
 
+
 class SMAcrossover(Strategy):
     """
     Simple Moving Average crossover. Long when fast > slow, flat otherwise.
-    
+
     Parameters:
       fast: [10, 50], default 50
       slow: [100, 300], default 200
-    
+
     Known failure mode: whipsaw in range-bound markets (ADX < 20).
     Validated reference: Faber (2007) TAA; expect Sharpe 0.4-0.7 on SPY 2000-2023.
     """
@@ -131,11 +134,11 @@ class SMAcrossover(Strategy):
 
         closes = bars["adj_close"] if "adj_close" in bars.columns else bars["close"]
 
-        sma_fast = closes.iloc[-self.fast:].mean()
-        sma_slow = closes.iloc[-self.slow:].mean()
+        sma_fast = closes.iloc[-self.fast :].mean()
+        sma_slow = closes.iloc[-self.slow :].mean()
 
-        prev_fast = closes.iloc[-(self.fast+1):-1].mean()
-        prev_slow = closes.iloc[-(self.slow+1):-1].mean()
+        prev_fast = closes.iloc[-(self.fast + 1) : -1].mean()
+        prev_slow = closes.iloc[-(self.slow + 1) : -1].mean()
 
         current_direction = self._positions[asset_id]
 
@@ -144,7 +147,9 @@ class SMAcrossover(Strategy):
             if current_direction != Direction.LONG:
                 self._positions[asset_id] = Direction.LONG
                 self._emit_signal(
-                    asset_id, Direction.LONG, event.timestamp,
+                    asset_id,
+                    Direction.LONG,
+                    event.timestamp,
                     signal_type="trend_crossover",
                     metadata={"sma_fast": sma_fast, "sma_slow": sma_slow},
                 )
@@ -152,7 +157,9 @@ class SMAcrossover(Strategy):
             if current_direction != Direction.FLAT:
                 self._positions[asset_id] = Direction.FLAT
                 self._emit_signal(
-                    asset_id, Direction.FLAT, event.timestamp,
+                    asset_id,
+                    Direction.FLAT,
+                    event.timestamp,
                     signal_type="trend_crossover",
                     metadata={"sma_fast": sma_fast, "sma_slow": sma_slow},
                 )
@@ -161,7 +168,7 @@ class SMAcrossover(Strategy):
 class EMACrossover(Strategy):
     """
     Exponential Moving Average crossover.
-    
+
     Parameters:
       fast_span: [8, 26], default 12
       slow_span: [21, 100], default 26
@@ -213,11 +220,15 @@ class EMACrossover(Strategy):
         if current_cross and not prev_cross:
             if current_direction != Direction.LONG:
                 self._positions[asset_id] = Direction.LONG
-                self._emit_signal(asset_id, Direction.LONG, event.timestamp, signal_type="ema_cross")
+                self._emit_signal(
+                    asset_id, Direction.LONG, event.timestamp, signal_type="ema_cross"
+                )
         elif not current_cross and prev_cross:
             if current_direction != Direction.FLAT:
                 self._positions[asset_id] = Direction.FLAT
-                self._emit_signal(asset_id, Direction.FLAT, event.timestamp, signal_type="ema_cross")
+                self._emit_signal(
+                    asset_id, Direction.FLAT, event.timestamp, signal_type="ema_cross"
+                )
 
 
 class MACDStrategy(Strategy):
@@ -278,7 +289,9 @@ class MACDStrategy(Strategy):
             if current_direction != Direction.LONG:
                 self._positions[asset_id] = Direction.LONG
                 self._emit_signal(
-                    asset_id, Direction.LONG, event.timestamp,
+                    asset_id,
+                    Direction.LONG,
+                    event.timestamp,
                     signal_type="macd",
                     metadata={"macd": float(macd_line.iloc[-1]), "histogram": float(histogram)},
                 )
@@ -291,10 +304,10 @@ class MACDStrategy(Strategy):
 class DonchianBreakout(Strategy):
     """
     Turtle Trading / Donchian channel breakout.
-    
+
     Entry: close above highest high of N bars (long); below lowest low (short).
     Parameters: N in [20, 55]; default 20 (original Turtle entry period).
-    
+
     Design intent: use on diversified basket (equity ETFs, bond ETFs, commodities).
     Running on single equities alone misses the multi-asset diversification.
     """
@@ -336,11 +349,11 @@ class DonchianBreakout(Strategy):
         lows = bars["adj_low"] if "adj_low" in bars.columns else bars["low"]
 
         current_close = closes.iloc[-1]
-        highest_high = highs.iloc[-self.entry_period:-1].max()
-        lowest_low = lows.iloc[-self.entry_period:-1].min()
+        highest_high = highs.iloc[-self.entry_period : -1].max()
+        lowest_low = lows.iloc[-self.entry_period : -1].min()
 
-        exit_high = highs.iloc[-self.exit_period:-1].max()
-        exit_low = lows.iloc[-self.exit_period:-1].min()
+        exit_high = highs.iloc[-self.exit_period : -1].max()
+        exit_low = lows.iloc[-self.exit_period : -1].min()
 
         current_direction = self._positions[asset_id]
 
@@ -348,7 +361,9 @@ class DonchianBreakout(Strategy):
             if current_direction != Direction.LONG:
                 self._positions[asset_id] = Direction.LONG
                 self._emit_signal(
-                    asset_id, Direction.LONG, event.timestamp,
+                    asset_id,
+                    Direction.LONG,
+                    event.timestamp,
                     signal_type="donchian_breakout",
                     holding_period=self.entry_period * 2,
                     metadata={"breakout_level": highest_high},
@@ -357,17 +372,23 @@ class DonchianBreakout(Strategy):
             if current_direction != Direction.SHORT:
                 self._positions[asset_id] = Direction.SHORT
                 self._emit_signal(
-                    asset_id, Direction.SHORT, event.timestamp,
+                    asset_id,
+                    Direction.SHORT,
+                    event.timestamp,
                     signal_type="donchian_breakout",
                     holding_period=self.entry_period * 2,
                     metadata={"breakdown_level": lowest_low},
                 )
         elif current_direction == Direction.LONG and current_close < exit_low:
             self._positions[asset_id] = Direction.FLAT
-            self._emit_signal(asset_id, Direction.FLAT, event.timestamp, signal_type="donchian_exit")
+            self._emit_signal(
+                asset_id, Direction.FLAT, event.timestamp, signal_type="donchian_exit"
+            )
         elif current_direction == Direction.SHORT and current_close > exit_high:
             self._positions[asset_id] = Direction.FLAT
-            self._emit_signal(asset_id, Direction.FLAT, event.timestamp, signal_type="donchian_exit")
+            self._emit_signal(
+                asset_id, Direction.FLAT, event.timestamp, signal_type="donchian_exit"
+            )
 
 
 class ADXFilteredTrend(Strategy):
@@ -414,15 +435,15 @@ class ADXFilteredTrend(Strategy):
         tr3 = (low - prev_close).abs()
         true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
 
-        atr = true_range.ewm(alpha=1/n, adjust=False).mean()
-        smoothed_pdm = pd.Series(plus_dm).ewm(alpha=1/n, adjust=False).mean()
-        smoothed_mdm = pd.Series(minus_dm).ewm(alpha=1/n, adjust=False).mean()
+        atr = true_range.ewm(alpha=1 / n, adjust=False).mean()
+        smoothed_pdm = pd.Series(plus_dm).ewm(alpha=1 / n, adjust=False).mean()
+        smoothed_mdm = pd.Series(minus_dm).ewm(alpha=1 / n, adjust=False).mean()
 
         pdi = 100 * smoothed_pdm / atr.replace(0, np.nan)
         mdi = 100 * smoothed_mdm / atr.replace(0, np.nan)
 
         dx = 100 * (pdi - mdi).abs() / (pdi + mdi).replace(0, np.nan)
-        adx = dx.ewm(alpha=1/n, adjust=False).mean()
+        adx = dx.ewm(alpha=1 / n, adjust=False).mean()
         return adx.fillna(0)
 
     def on_bar(self, event: BarEvent, data_handler: DataHandler) -> None:
@@ -445,8 +466,8 @@ class ADXFilteredTrend(Strategy):
         adx = self._compute_adx(highs, lows, closes)
         current_adx = adx.iloc[-1]
 
-        sma_fast = closes.iloc[-self.trend_fast:].mean()
-        sma_slow = closes.iloc[-self.trend_slow:].mean()
+        sma_fast = closes.iloc[-self.trend_fast :].mean()
+        sma_slow = closes.iloc[-self.trend_slow :].mean()
         current_direction = self._positions[asset_id]
 
         if current_adx > self.adx_threshold:
@@ -454,7 +475,9 @@ class ADXFilteredTrend(Strategy):
             if sma_fast > sma_slow and current_direction != Direction.LONG:
                 self._positions[asset_id] = Direction.LONG
                 self._emit_signal(
-                    asset_id, Direction.LONG, event.timestamp,
+                    asset_id,
+                    Direction.LONG,
+                    event.timestamp,
                     signal_type="adx_trend",
                     metadata={"adx": float(current_adx)},
                 )
@@ -466,7 +489,9 @@ class ADXFilteredTrend(Strategy):
             if current_direction != Direction.FLAT:
                 self._positions[asset_id] = Direction.FLAT
                 self._emit_signal(
-                    asset_id, Direction.FLAT, event.timestamp,
+                    asset_id,
+                    Direction.FLAT,
+                    event.timestamp,
                     signal_type="adx_ranging",
                     metadata={"adx": float(current_adx)},
                 )
@@ -476,7 +501,7 @@ class TimeSeriesMomentum(Strategy):
     """
     Moskowitz, Ooi, Pedersen (2012): time-series momentum.
     Signal = sign of 12-1 month return (skip most recent month).
-    
+
     Best on diversified ETF basket. Works by design on multiple asset classes.
     Parameters: 12 months lookback, 1 month skip (standard from published paper).
     Monthly rebalance.
@@ -536,7 +561,9 @@ class TimeSeriesMomentum(Strategy):
         if new_direction != current_direction:
             self._positions[asset_id] = new_direction
             self._emit_signal(
-                asset_id, new_direction, event.timestamp,
+                asset_id,
+                new_direction,
+                event.timestamp,
                 confidence=min(1.0, abs(momentum_return) * 5),
                 signal_type="tsmom",
                 holding_period=21,

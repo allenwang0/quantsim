@@ -3,10 +3,10 @@ Database layer. SQLite for solo development.
 All timestamps stored as Unix epoch INTEGER for fast range queries.
 """
 
-import sqlite3
 import os
-from pathlib import Path
+import sqlite3
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Generator
 
 DB_PATH = os.environ.get("QUANTSIM_DB", str(Path.home() / ".quantsim" / "quantsim.db"))
@@ -20,11 +20,11 @@ def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
     ensure_db_dir()
     conn = sqlite3.connect(db_path, timeout=10.0)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")    # WAL: concurrent reads while writing
+    conn.execute("PRAGMA journal_mode=WAL")  # WAL: concurrent reads while writing
     conn.execute("PRAGMA synchronous=NORMAL")  # fsync on checkpoint only
-    conn.execute("PRAGMA cache_size=-64000")   # 64MB page cache
-    conn.execute("PRAGMA temp_store=MEMORY")   # temp tables in RAM
-    conn.execute("PRAGMA mmap_size=268435456") # 256MB memory-mapped I/O
+    conn.execute("PRAGMA cache_size=-64000")  # 64MB page cache
+    conn.execute("PRAGMA temp_store=MEMORY")  # temp tables in RAM
+    conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory-mapped I/O
     conn.isolation_level = None  # autocommit mode; we manage transactions explicitly
     return conn
 

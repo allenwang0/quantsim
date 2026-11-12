@@ -15,7 +15,7 @@ Concurrent architecture (per spec Section 1):
     Coroutine B: fill polling (every 5s)
     Coroutine C: event loop dispatcher
     Coroutine D: risk monitor
-  
+
   Process 2 (dashboard/app.py, Streamlit):
     Reads SQLite every 2s; never writes; never blocks trading
 
@@ -23,25 +23,26 @@ Communication: SQLite as shared state between processes.
 """
 
 from __future__ import annotations
+
 import asyncio
 import logging
 import signal
-import time
-from datetime import datetime, date, timezone
-from typing import List, Optional, Dict
+from datetime import datetime, timezone
+from typing import List, Optional
+
 import pytz
 
-from quantsim.core.event_queue import EventQueue
-from quantsim.core.events import EventType, BarEvent, SignalEvent, OrderEvent, FillEvent, RiskEvent
-from quantsim.core.database import init_db
-from quantsim.core.config import config
-from quantsim.portfolio.portfolio import Portfolio
-from quantsim.portfolio.manager import PortfolioManager
-from quantsim.portfolio.sizing import EqualWeightSizer
 from quantsim.backtesting.order_manager import OrderManager
+from quantsim.core.config import config
+from quantsim.core.database import init_db
+from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, EventType, FillEvent, OrderEvent, RiskEvent, SignalEvent
+from quantsim.portfolio.manager import PortfolioManager
+from quantsim.portfolio.portfolio import Portfolio
+from quantsim.portfolio.sizing import EqualWeightSizer
 from quantsim.reporting.monitor import StrategyHealthMonitor
 from quantsim.risk.risk_manager import RiskManager
-from quantsim.strategies.registry import EnsembleEngine, StrategyRegistry
+from quantsim.strategies.registry import EnsembleEngine
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +57,11 @@ class MarketHoursChecker:
         """Returns True if NYSE regular session is open."""
         try:
             import pandas_market_calendars as mcal
+
             nyse = mcal.get_calendar("NYSE")
             now_et = datetime.now(ET_TZ)
             today = now_et.date()
-            schedule = nyse.schedule(
-                start_date=str(today), end_date=str(today)
-            )
+            schedule = nyse.schedule(start_date=str(today), end_date=str(today))
             if schedule.empty:
                 return False
             market_open = schedule.iloc[0]["market_open"].to_pydatetime()
@@ -74,9 +74,9 @@ class MarketHoursChecker:
             if now_et.weekday() >= 5:
                 return False
             return (
-                (now_et.hour == 9 and now_et.minute >= 30) or
-                (10 <= now_et.hour <= 15) or
-                (now_et.hour == 16 and now_et.minute == 0)
+                (now_et.hour == 9 and now_et.minute >= 30)
+                or (10 <= now_et.hour <= 15)
+                or (now_et.hour == 16 and now_et.minute == 0)
             )
 
     @staticmethod
@@ -90,6 +90,7 @@ class MarketHoursChecker:
         if now_et >= next_open:
             # Already past open today (market is closed), wait until tomorrow
             from datetime import timedelta
+
             next_open += timedelta(days=1)
             while next_open.weekday() >= 5:
                 next_open += timedelta(days=1)
@@ -99,14 +100,14 @@ class MarketHoursChecker:
 class PaperEngine:
     """
     Live paper trading engine.
-    
+
     Usage:
         engine = PaperEngine(strategies=[sma_strategy])
         asyncio.run(engine.run())
-    
+
     Or from CLI:
         quantsim paper --strategy sma --symbol SPY
-    
+
     The engine runs indefinitely until interrupted (Ctrl+C or SIGTERM).
     State is persisted to SQLite continuously.
     Dashboard runs as a separate process reading from the same DB.
@@ -128,17 +129,14 @@ class PaperEngine:
         init_db(self.db_path)
 
         # Collect universe
-        universe = list(set(
-            asset_id
-            for s in strategies
-            for asset_id in s.asset_ids
-        ))
+        universe = list(set(asset_id for s in strategies for asset_id in s.asset_ids))
 
         # Event queue
         self.event_queue = EventQueue()
 
         # Live data handler (Alpaca or yfinance fallback)
         from quantsim.paper_trading.alpaca_handler import AlpacaLiveDataHandler
+
         self.data_handler = AlpacaLiveDataHandler(
             asset_ids=universe,
             event_queue=self.event_queue,
@@ -172,6 +170,7 @@ class PaperEngine:
 
         # Execution handler (Alpaca paper)
         from quantsim.paper_trading.alpaca_handler import AlpacaPaperExecutionHandler
+
         self.execution_handler = AlpacaPaperExecutionHandler(
             event_queue=self.event_queue,
             db_path=self.db_path,
@@ -227,9 +226,7 @@ class PaperEngine:
             else:
                 mins = MarketHoursChecker.minutes_to_open()
                 sleep_secs = max(60, (mins - 5) * 60) if mins > 5 else 60
-                logger.info(
-                    f"Market closed. {mins}m to open. Sleeping {sleep_secs//60}m."
-                )
+                logger.info(f"Market closed. {mins}m to open. Sleeping {sleep_secs // 60}m.")
                 await asyncio.sleep(min(sleep_secs, 3600))
 
     async def _poll_fills(self) -> None:
@@ -263,7 +260,9 @@ class PaperEngine:
         while self._running:
             # Run health checks
             try:
-                self.health_monitor.check_all(self.portfolio, datetime.now(timezone.utc).replace(tzinfo=None))
+                self.health_monitor.check_all(
+                    self.portfolio, datetime.now(timezone.utc).replace(tzinfo=None)
+                )
             except Exception:
                 pass
             equity = self.portfolio.total_equity
@@ -322,8 +321,7 @@ class PaperEngine:
         self._fills_processed += 1
         self.portfolio_manager.on_fill(event)
         logger.info(
-            f"FILL: {event.side.value} {event.quantity} {event.asset_id} "
-            f"@ ${event.fill_price:.2f}"
+            f"FILL: {event.side.value} {event.quantity} {event.asset_id} @ ${event.fill_price:.2f}"
         )
 
     def _handle_risk(self, event: RiskEvent) -> None:

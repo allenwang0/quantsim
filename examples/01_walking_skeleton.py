@@ -17,18 +17,18 @@ Run:
     cd examples && python 01_walking_skeleton.py
 """
 
-import sys, os
+import os
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from datetime import datetime
 
-from quantsim.core.logging_config import setup_logging
-from quantsim.core.database_v2 import init_full_db
-from quantsim.core.database import db_conn
-from quantsim.strategies.momentum_factor import BuyAndHold
-from quantsim.core.event_queue import EventQueue
 from quantsim.backtesting.engine import BacktestEngine
+from quantsim.core.database import db_conn
+from quantsim.core.database_v2 import init_full_db
+from quantsim.core.event_queue import EventQueue
+from quantsim.core.logging_config import setup_logging
+from quantsim.strategies.momentum_factor import BuyAndHold
 
 setup_logging(level="INFO")
 
@@ -54,9 +54,16 @@ with db_conn(DB_PATH) as conn:
             "INSERT OR REPLACE INTO raw_bars "
             "(asset_id, timestamp, open, high, low, close, volume, source) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            ("SPY", ts_epoch,
-             price * 0.998, price * 1.005, price * 0.995,
-             price, 10_000_000, "synthetic"),
+            (
+                "SPY",
+                ts_epoch,
+                price * 0.998,
+                price * 1.005,
+                price * 0.995,
+                price,
+                10_000_000,
+                "synthetic",
+            ),
         )
         conn.execute(
             "INSERT OR REPLACE INTO adjustment_factors "
@@ -67,7 +74,7 @@ with db_conn(DB_PATH) as conn:
 
 print(f"Injected {n_bars} synthetic SPY bars")
 print(f"Price range: ${prices.min():.2f} → ${prices.max():.2f}")
-print(f"Theoretical total return: {(prices[-1]/prices[0]-1):.2%}")
+print(f"Theoretical total return: {(prices[-1] / prices[0] - 1):.2%}")
 
 # ── Step 3: Run the walking skeleton ──────────────────────────────────────────
 eq = EventQueue()
@@ -90,8 +97,9 @@ print(f"\nEngine total return:     {total_return:+.2%}")
 print(f"Fills executed:          {results.get('_meta', {}).get('fills_executed', 0)}")
 print(f"Bars processed:          {results.get('_meta', {}).get('bars_processed', 0)}")
 
-assert total_return > 0, \
+assert total_return > 0, (
     f"FAIL: Buy-and-hold on upward-trending data returned {total_return:.2%}. Check the engine."
+)
 
 print("\n✓ WALKING SKELETON VALIDATION PASSED")
 print("  The event loop, portfolio tracking, and data handler all work correctly.")

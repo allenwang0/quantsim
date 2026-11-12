@@ -19,19 +19,21 @@ as a position sizing overlay.
 """
 
 from __future__ import annotations
+
 import logging
-import warnings
-from typing import Optional, Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from scipy.cluster.hierarchy import linkage, leaves_list
-from scipy.spatial.distance import squareform
+from scipy.cluster.hierarchy import leaves_list, linkage
 from scipy.optimize import minimize
+from scipy.spatial.distance import squareform
 
 logger = logging.getLogger(__name__)
 
 try:
     import cvxpy as cp
+
     CVXPY_AVAILABLE = True
 except ImportError:
     CVXPY_AVAILABLE = False
@@ -41,9 +43,9 @@ except ImportError:
 def compute_covariance(returns: pd.DataFrame, method: str = "sample") -> np.ndarray:
     """
     Compute covariance matrix with optional shrinkage.
-    
+
     method: 'sample', 'ledoit_wolf', 'oracle_approximating'
-    
+
     Ledoit-Wolf shrinkage is the standard in practice: it fixes
     the sample covariance estimation error for small T/N ratios.
     Any portfolio with more than ~30 assets should use shrinkage.
@@ -53,12 +55,14 @@ def compute_covariance(returns: pd.DataFrame, method: str = "sample") -> np.ndar
 
     elif method == "ledoit_wolf":
         from sklearn.covariance import LedoitWolf
+
         lw = LedoitWolf()
         lw.fit(returns.dropna())
         return lw.covariance_
 
     elif method == "oracle_approximating":
         from sklearn.covariance import OAS
+
         oas = OAS()
         oas.fit(returns.dropna())
         return oas.covariance_
@@ -68,19 +72,20 @@ def compute_covariance(returns: pd.DataFrame, method: str = "sample") -> np.ndar
 
 # ── Mean-Variance Optimization ─────────────────────────────────────────────────
 
+
 class MeanVarianceOptimizer:
     """
     Markowitz mean-variance optimization.
-    
+
     Objective options:
     - 'max_sharpe': maximize Sharpe ratio (most common)
     - 'min_variance': minimize portfolio variance
     - 'max_return': maximize return subject to vol constraint
     - 'efficient_risk': minimize variance for target return
-    
+
     Uses cvxpy for convex optimization (handles constraints cleanly).
     Falls back to scipy if cvxpy unavailable.
-    
+
     Warning: mean-variance is sensitive to expected return estimates.
     Small errors in expected returns lead to wildly different weights.
     Use Black-Litterman or HRP in production.
@@ -182,11 +187,13 @@ class MeanVarianceOptimizer:
 
         try:
             if objective == "max_sharpe":
-                result = minimize(neg_sharpe, x0, method="SLSQP",
-                                  bounds=bounds, constraints=constraints)
+                result = minimize(
+                    neg_sharpe, x0, method="SLSQP", bounds=bounds, constraints=constraints
+                )
             else:
-                result = minimize(portfolio_vol, x0, method="SLSQP",
-                                  bounds=bounds, constraints=constraints)
+                result = minimize(
+                    portfolio_vol, x0, method="SLSQP", bounds=bounds, constraints=constraints
+                )
             if result.success:
                 w = result.x
                 w = np.clip(w, self.bounds[0], self.bounds[1])
@@ -196,9 +203,7 @@ class MeanVarianceOptimizer:
 
         return np.ones(n) / n
 
-    def efficient_frontier(
-        self, returns: pd.DataFrame, n_points: int = 50
-    ) -> pd.DataFrame:
+    def efficient_frontier(self, returns: pd.DataFrame, n_points: int = 50) -> pd.DataFrame:
         """Generate the efficient frontier curve."""
         mu = returns.mean().values * 252
         cov = compute_covariance(returns, self.cov_method) * 252
@@ -211,12 +216,17 @@ class MeanVarianceOptimizer:
         frontier = []
         for tr in target_returns:
             try:
-                w_dict = self.optimize(returns, objective="efficient_risk", target_return=tr/252)
+                w_dict = self.optimize(returns, objective="efficient_risk", target_return=tr / 252)
                 w = np.array(list(w_dict.values()))
                 port_ret = w @ mu
                 port_vol = np.sqrt(w @ cov @ w)
-                frontier.append({"return": port_ret, "volatility": port_vol,
-                                  "sharpe": (port_ret - self.rf * 252) / (port_vol + 1e-8)})
+                frontier.append(
+                    {
+                        "return": port_ret,
+                        "volatility": port_vol,
+                        "sharpe": (port_ret - self.rf * 252) / (port_vol + 1e-8),
+                    }
+                )
             except Exception:
                 pass
 
@@ -225,21 +235,22 @@ class MeanVarianceOptimizer:
 
 # ── Hierarchical Risk Parity ───────────────────────────────────────────────────
 
+
 class HierarchicalRiskParity:
     """
     Lopez de Prado (2016) Hierarchical Risk Parity.
-    
+
     HRP is the gold standard for robust portfolio construction because:
     1. No matrix inversion (avoids covariance estimation errors amplification)
     2. Diversifies across clusters, not individual assets
     3. Stable out-of-sample vs mean-variance (empirically shown)
     4. Can use any risk measure (variance, CVaR, semi-variance)
-    
+
     Three steps:
     1. Tree clustering: build hierarchy from correlation matrix
     2. Quasi-diagonalization: reorder assets to minimize intracluster distances
     3. Recursive bisection: allocate capital top-down across clusters
-    
+
     Reference: Lopez de Prado (2016) "Building Diversified Portfolios
     that Outperform Out of Sample"
     """
@@ -301,9 +312,7 @@ class HierarchicalRiskParity:
             w = inv_var / inv_var.sum()
             return float(w @ cov @ w)
 
-    def _recursive_bisection(
-        self, returns: pd.DataFrame, assets: List[str]
-    ) -> Dict[str, float]:
+    def _recursive_bisection(self, returns: pd.DataFrame, assets: List[str]) -> Dict[str, float]:
         """Recursive bisection to allocate weights."""
         weights = {a: 1.0 for a in assets}
         cluster_items = [assets]
@@ -332,7 +341,7 @@ class HierarchicalRiskParity:
 
                 # Redistribute weight
                 for a in left:
-                    weights[a] *= (1 - alpha)
+                    weights[a] *= 1 - alpha
                 for a in right:
                     weights[a] *= alpha
 
@@ -350,14 +359,15 @@ class HierarchicalRiskParity:
 
 # ── Risk Parity ────────────────────────────────────────────────────────────────
 
+
 class RiskParityOptimizer:
     """
     Equal Risk Contribution (ERC) portfolio.
-    
+
     Each asset contributes equally to portfolio volatility.
     More robust than mean-variance: no expected return estimation needed.
     Used by AQR, Bridgewater (risk parity funds), and many macro managers.
-    
+
     Solved via SLSQP: minimize sum of squared pairwise risk contributions.
     """
 
@@ -371,7 +381,7 @@ class RiskParityOptimizer:
         def risk_contribution(w):
             port_var = w @ cov @ w
             mrc = cov @ w  # marginal risk contribution
-            rc = w * mrc   # risk contribution
+            rc = w * mrc  # risk contribution
             return rc
 
         def objective(w):
@@ -388,9 +398,12 @@ class RiskParityOptimizer:
 
         try:
             result = minimize(
-                objective, x0, method="SLSQP",
-                bounds=bounds, constraints=constraints,
-                options={"maxiter": 1000, "ftol": 1e-12}
+                objective,
+                x0,
+                method="SLSQP",
+                bounds=bounds,
+                constraints=constraints,
+                options={"maxiter": 1000, "ftol": 1e-12},
             )
             if result.success:
                 w = np.clip(result.x, 0, 1)
@@ -403,22 +416,23 @@ class RiskParityOptimizer:
 
 # ── Black-Litterman ────────────────────────────────────────────────────────────
 
+
 class BlackLittermanOptimizer:
     """
     Black-Litterman portfolio optimization.
-    
+
     Addresses the primary weakness of mean-variance: sensitivity to
     expected return inputs. BL combines:
     1. Market equilibrium returns (prior): reverse-engineered from cap weights
     2. Investor views (likelihood): override specific return expectations
     3. Posterior: Bayesian combination of prior + views
-    
+
     The result is a well-diversified portfolio that only tilts toward
     views where you have conviction, relative to the market baseline.
-    
+
     This is the approach used by large allocators (Goldman Sachs developed it,
     institutional asset managers widely use it).
-    
+
     Reference: Black & Litterman (1992), Idzorek (2007)
     """
 
@@ -440,13 +454,13 @@ class BlackLittermanOptimizer:
     ) -> Dict[str, float]:
         """
         Optimize using Black-Litterman.
-        
+
         views: list of dicts with keys:
           - 'assets': list of asset names
           - 'weights': list of weights (long +, short -)
           - 'return': expected return for this view
           - 'confidence': [0, 1] confidence level
-        
+
         Example view: long SPY, short TLT by 5% annually:
           {'assets': ['SPY', 'TLT'], 'weights': [1, -1],
            'return': 0.05 / 252, 'confidence': 0.7}
@@ -558,11 +572,12 @@ class BlackLittermanOptimizer:
 
 # ── Portfolio Optimization Strategy ───────────────────────────────────────────
 
+
 class PortfolioOptimizationStrategy:
     """
     Wraps all optimizer types into a strategy-compatible interface.
     Rebalances monthly, applies target weights via PortfolioManager.
-    
+
     This is the bridge between portfolio theory and the event-driven engine.
     """
 
@@ -611,7 +626,7 @@ class PortfolioOptimizationStrategy:
         if len(returns) < self.lookback // 2:
             return None
 
-        recent_returns = returns.iloc[-self.lookback:]
+        recent_returns = returns.iloc[-self.lookback :]
         # Drop columns with too many NaN
         recent_returns = recent_returns.dropna(axis=1, thresh=len(recent_returns) // 2)
 
@@ -621,7 +636,7 @@ class PortfolioOptimizationStrategy:
         try:
             if self.optimizer is None:
                 n = len(recent_returns.columns)
-                weights = {c: 1/n for c in recent_returns.columns}
+                weights = {c: 1 / n for c in recent_returns.columns}
             elif isinstance(self.optimizer, BlackLittermanOptimizer):
                 weights = self.optimizer.optimize(recent_returns, views=views)
             else:

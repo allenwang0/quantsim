@@ -19,26 +19,28 @@ Usage:
   quantsim stress --strategy dual_momentum
 """
 
-import sys, os, argparse, logging
+import argparse
+import logging
+import os
 from datetime import datetime
-import pandas as pd
-import numpy as np
 
+import pandas as pd
 
 from quantsim.core.logging_config import setup_logging
+
 setup_logging()
 logger = logging.getLogger("stress_test")
 
 
 STRESS_PERIODS = {
-    "dot_com_crash":     ("2000-03-01", "2002-10-09", "Dot-com crash: -49% S&P 500"),
-    "financial_crisis":  ("2007-10-01", "2009-03-09", "Global financial crisis: -57% S&P 500"),
-    "flash_crash":       ("2010-05-01", "2010-06-30", "Flash crash + recovery: -9% intraday"),
-    "eu_debt_crisis":    ("2011-08-01", "2011-10-31", "EU debt crisis: -20% S&P 500"),
-    "china_correction":  ("2015-08-01", "2015-09-30", "China correction: -11% S&P 500"),
-    "covid_crash":       ("2020-02-19", "2020-04-30", "COVID crash: -34% → recovery"),
-    "rate_shock_2022":   ("2022-01-01", "2022-10-31", "Rate shock: -25% S&P 500"),
-    "full_history":      ("2000-01-01", "2023-12-31", "Full 23-year history (all regimes)"),
+    "dot_com_crash": ("2000-03-01", "2002-10-09", "Dot-com crash: -49% S&P 500"),
+    "financial_crisis": ("2007-10-01", "2009-03-09", "Global financial crisis: -57% S&P 500"),
+    "flash_crash": ("2010-05-01", "2010-06-30", "Flash crash + recovery: -9% intraday"),
+    "eu_debt_crisis": ("2011-08-01", "2011-10-31", "EU debt crisis: -20% S&P 500"),
+    "china_correction": ("2015-08-01", "2015-09-30", "China correction: -11% S&P 500"),
+    "covid_crash": ("2020-02-19", "2020-04-30", "COVID crash: -34% → recovery"),
+    "rate_shock_2022": ("2022-01-01", "2022-10-31", "Rate shock: -25% S&P 500"),
+    "full_history": ("2000-01-01", "2023-12-31", "Full 23-year history (all regimes)"),
 }
 
 
@@ -51,8 +53,12 @@ def run_stress_period(
     capital: float = 100_000,
 ) -> dict:
     """Run a vectorized backtest for a single stress period."""
+    from quantsim.backtesting.vectorized import (
+        VectorizedBacktester,
+        momentum_signal,
+        sma_crossover_signal,
+    )
     from quantsim.data.ingestion import get_bars
-    from quantsim.backtesting.vectorized import VectorizedBacktester, sma_crossover_signal, momentum_signal
 
     SIGNAL_MAP = {
         "sma": sma_crossover_signal,
@@ -96,14 +102,17 @@ def run_stress_period(
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="QuantSim Stress Test Runner")
-    parser.add_argument("--strategy", default="sma",
-                        choices=["sma", "ema", "momentum", "tsmom",
-                                 "donchian", "dual_momentum"],
-                        help="Strategy to stress test")
+    parser.add_argument(
+        "--strategy",
+        default="sma",
+        choices=["sma", "ema", "momentum", "tsmom", "donchian", "dual_momentum"],
+        help="Strategy to stress test",
+    )
     parser.add_argument("--symbol", "--symbols", nargs="+", default=["SPY"])
     parser.add_argument("--capital", type=float, default=100_000)
-    parser.add_argument("--periods", nargs="*", default=None,
-                        help="Specific periods to test (default: all)")
+    parser.add_argument(
+        "--periods", nargs="*", default=None, help="Specific periods to test (default: all)"
+    )
     parser.add_argument("--db", default=None)
     parser.add_argument("--output", default=None, help="Save HTML tearsheet")
     args = parser.parse_args(argv)
@@ -137,7 +146,8 @@ def main(argv=None):
         result = run_stress_period(
             strategy_name=args.strategy,
             symbols=args.symbol,
-            start=start, end=end,
+            start=start,
+            end=end,
             db_path=db_path,
             capital=args.capital,
         )
@@ -180,27 +190,23 @@ def main(argv=None):
 
     if failures:
         logger.warning(f"\nFAILED PERIODS: {failures}")
-        logger.warning(
-            "A strategy that fails stress periods is fragile and regime-dependent."
-        )
-        logger.warning(
-            "It will likely fail in live trading when those conditions recur."
-        )
+        logger.warning("A strategy that fails stress periods is fragile and regime-dependent.")
+        logger.warning("It will likely fail in live trading when those conditions recur.")
     else:
-        logger.info(
-            "\n✓ All stress periods passed. Strategy shows regime resilience."
-        )
+        logger.info("\n✓ All stress periods passed. Strategy shows regime resilience.")
 
     # Generate tearsheet if requested
     if args.output and "full_history" in results_by_period:
         logger.info(f"\nGenerating tearsheet: {args.output}")
-        from quantsim.reporting.tearsheet import generate_tearsheet
+
         # Use full_history equity curve for tearsheet
         full = run_stress_period(
             strategy_name=args.strategy,
             symbols=args.symbol,
-            start="2000-01-01", end="2023-12-31",
-            db_path=db_path, capital=args.capital,
+            start="2000-01-01",
+            end="2023-12-31",
+            db_path=db_path,
+            capital=args.capital,
         )
         if "error" not in full:
             logger.info("Tearsheet generation requires equity curve from DB.")

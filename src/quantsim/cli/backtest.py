@@ -38,10 +38,15 @@ Available strategies:
   covered_call, iron_condor, long_straddle
 """
 
-import sys, os, argparse, json, logging
+import argparse
+import json
+import logging
+import os
+import sys
 from datetime import datetime, timezone
 
 from quantsim.core.logging_config import setup_logging
+
 setup_logging()
 
 logger = logging.getLogger("backtest")
@@ -49,38 +54,51 @@ logger = logging.getLogger("backtest")
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="QuantSim Backtest Runner v2")
-    parser.add_argument("--mode", default="event",
-                        choices=["event", "vectorized", "sweep", "wfo"],
-                        help="Engine mode (default: event)")
+    parser.add_argument(
+        "--mode",
+        default="event",
+        choices=["event", "vectorized", "sweep", "wfo"],
+        help="Engine mode (default: event)",
+    )
     parser.add_argument("--strategy", nargs="+", default=["sma"])
     parser.add_argument("--symbol", "--symbols", nargs="+", default=["SPY"])
     parser.add_argument("--start", default="2015-01-01")
-    parser.add_argument("--end", default=datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d"))
+    parser.add_argument(
+        "--end", default=datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d")
+    )
     parser.add_argument("--capital", type=float, default=None)
-    parser.add_argument("--slippage", default="volume",
-                        choices=["none", "fixed", "volume"])
-    parser.add_argument("--commission", default="zero",
-                        choices=["zero", "per_share"])
-    parser.add_argument("--optimizer", default=None,
-                        choices=["hrp", "risk_parity", "mean_variance", "black_litterman"],
-                        help="Portfolio optimization overlay")
-    parser.add_argument("--ensemble", action="store_true",
-                        help="Use signal ensemble aggregation for multiple strategies")
-    parser.add_argument("--ensemble-method", default="confidence_weighted",
-                        choices=["majority_vote", "confidence_weighted", "orthogonality_checked"])
-    parser.add_argument("--train-years", type=float, default=3.0,
-                        help="Training window years (WFO mode)")
-    parser.add_argument("--test-months", type=int, default=12,
-                        help="Test window months (WFO mode)")
+    parser.add_argument("--slippage", default="volume", choices=["none", "fixed", "volume"])
+    parser.add_argument("--commission", default="zero", choices=["zero", "per_share"])
+    parser.add_argument(
+        "--optimizer",
+        default=None,
+        choices=["hrp", "risk_parity", "mean_variance", "black_litterman"],
+        help="Portfolio optimization overlay",
+    )
+    parser.add_argument(
+        "--ensemble",
+        action="store_true",
+        help="Use signal ensemble aggregation for multiple strategies",
+    )
+    parser.add_argument(
+        "--ensemble-method",
+        default="confidence_weighted",
+        choices=["majority_vote", "confidence_weighted", "orthogonality_checked"],
+    )
+    parser.add_argument(
+        "--train-years", type=float, default=3.0, help="Training window years (WFO mode)"
+    )
+    parser.add_argument("--test-months", type=int, default=12, help="Test window months (WFO mode)")
     parser.add_argument("--db", default=None)
     parser.add_argument("--output", default=None, help="Save results to JSON")
-    parser.add_argument("--validate", action="store_true",
-                        help="Walking skeleton validation (SPY buy-and-hold)")
+    parser.add_argument(
+        "--validate", action="store_true", help="Walking skeleton validation (SPY buy-and-hold)"
+    )
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--tearsheet", default=None, help="Save HTML tearsheet")
     args = parser.parse_args(argv)
 
-    from quantsim.core.config import config, QuantSimConfig
+    from quantsim.core.config import config
     from quantsim.core.database_v2 import init_full_db
 
     db_path = args.db or config.db_path
@@ -108,6 +126,7 @@ def main(argv=None):
     # ── Vectorized / Sweep / WFO modes ───────────────────────────────────────
     if args.mode in ("vectorized", "sweep", "wfo"):
         import pandas as pd
+
         from quantsim.data.ingestion import get_bars
 
         price_dict = {}
@@ -133,6 +152,7 @@ def main(argv=None):
         }
         signal_name = SIGNAL_MAP.get(args.strategy[0], "sma_crossover_signal")
         from quantsim.backtesting import vectorized as vmod
+
         signal_fn = getattr(vmod, signal_name, vmod.sma_crossover_signal)
 
         DEFAULT_GRIDS = {
@@ -148,6 +168,7 @@ def main(argv=None):
 
         if args.mode == "vectorized":
             from quantsim.backtesting.vectorized import VectorizedBacktester
+
             bt = VectorizedBacktester(prices=prices, initial_capital=capital)
             results = bt.run(signal_fn, benchmark=bench)
             _print_results(results)
@@ -155,6 +176,7 @@ def main(argv=None):
 
         elif args.mode == "sweep":
             from quantsim.backtesting.vectorized import VectorizedBacktester
+
             bt = VectorizedBacktester(prices=prices, initial_capital=capital)
             df = bt.parameter_sweep(signal_fn, param_grid, benchmark=bench)
             logger.info(f"\nTop 5 configurations (by Deflated Sharpe):\n{df.head().to_string()}")
@@ -162,6 +184,7 @@ def main(argv=None):
 
         elif args.mode == "wfo":
             from quantsim.backtesting.walk_forward import WalkForwardOptimizer
+
             wfo = WalkForwardOptimizer(
                 prices=prices,
                 train_years=args.train_years,
@@ -176,13 +199,16 @@ def main(argv=None):
         return
 
     # ── Event-Driven mode ────────────────────────────────────────────────────
-    from quantsim.strategies.registry import StrategyRegistry, EnsembleEngine
-    from quantsim.core.event_queue import EventQueue
-    from quantsim.backtesting.execution import (
-        NoSlippage, FixedSpreadSlippage, VolumeProportionalSlippage,
-        ZeroCommission, PerShareCommission, FillModel,
-    )
     from quantsim.backtesting.engine import BacktestEngine
+    from quantsim.backtesting.execution import (
+        FixedSpreadSlippage,
+        NoSlippage,
+        PerShareCommission,
+        VolumeProportionalSlippage,
+        ZeroCommission,
+    )
+    from quantsim.core.event_queue import EventQueue
+    from quantsim.strategies.registry import StrategyRegistry
 
     slippage_map = {
         "none": NoSlippage(),
@@ -204,6 +230,7 @@ def main(argv=None):
     sizer = None
     if args.optimizer:
         from quantsim.portfolio.optimization import PortfolioOptimizationStrategy
+
         opt_strat = PortfolioOptimizationStrategy(optimizer_name=args.optimizer)
         logger.info(f"Portfolio optimizer: {args.optimizer}")
 
@@ -231,9 +258,12 @@ def main(argv=None):
         try:
             from quantsim.reporting.analytics import load_equity_curve_from_db, load_trades_from_db
             from quantsim.reporting.tearsheet import generate_tearsheet
+
             equity = load_equity_curve_from_db(db_path)
             trades = load_trades_from_db(db_path)
-            strat_label = ' + '.join(args.strategy) if isinstance(args.strategy, list) else args.strategy
+            strat_label = (
+                " + ".join(args.strategy) if isinstance(args.strategy, list) else args.strategy
+            )
             generate_tearsheet(
                 equity_curve=equity,
                 strategy_name=f"{strat_label} on {' '.join(args.symbol)}",
@@ -241,9 +271,9 @@ def main(argv=None):
                 output_path=args.tearsheet,
                 n_strategies_tested=1,
             )
-            logger.info(f'Tearsheet saved to {args.tearsheet}')
+            logger.info(f"Tearsheet saved to {args.tearsheet}")
         except Exception as e:
-            logger.warning(f'Tearsheet generation failed: {e}')
+            logger.warning(f"Tearsheet generation failed: {e}")
 
 
 def _print_results(results):
@@ -258,7 +288,7 @@ def _print_results(results):
     if "sharpe_ratio" in results:
         logger.info(f"  Sharpe:        {results['sharpe_ratio']:.3f}")
     if "deflated_sharpe_ratio" in results:
-        dsr = results['deflated_sharpe_ratio']
+        dsr = results["deflated_sharpe_ratio"]
         sig = "✓ significant" if dsr > 0.95 else "✗ not significant"
         logger.info(f"  Deflated SR:   {dsr:.3f} ({sig})")
     if "max_drawdown" in results:
@@ -277,7 +307,7 @@ def _validate_walking_skeleton(results):
     logger.info("\n" + "=" * 60)
     logger.info("WALKING SKELETON VALIDATION RESULT")
     logger.info(f"  Your total return: {total:.2%}")
-    logger.info(f"  Expected range:    50% – 80%")
+    logger.info("  Expected range:    50% – 80%")
     if total > 0:
         logger.info("  ✓ PASS: Engine is working correctly. Proceed to strategy development.")
     else:
@@ -288,6 +318,7 @@ def _validate_walking_skeleton(results):
 def _save_results(results, path):
     if not path:
         return
+
     def _clean(obj):
         if isinstance(obj, dict):
             return {k: _clean(v) for k, v in obj.items()}
@@ -298,6 +329,7 @@ def _save_results(results, path):
         if isinstance(obj, (int, float, str, bool, type(None))):
             return obj
         return str(obj)
+
     with open(path, "w") as f:
         json.dump(_clean(results), f, indent=2)
     logger.info(f"Results saved to {path}")

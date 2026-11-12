@@ -6,11 +6,14 @@ which meant live trading. These tests pin the contract: unset means paper,
 only "true"/"false" are accepted, and live mode needs QUANTSIM_ALLOW_LIVE=1 too.
 No network: TradingClient is replaced by a recorder.
 """
+
 import importlib
 
 import pytest
 
 import quantsim.paper_trading.alpaca_handler as handler
+
+
 class RecordingTradingClient:
     calls = []
 

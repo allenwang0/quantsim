@@ -14,7 +14,7 @@ What this module provides:
 5. Optional: simple PPO RL agent via stable-baselines3
 
 The ML pipeline:
-  Raw prices → Factor features → LightGBM → Return predictions → 
+  Raw prices → Factor features → LightGBM → Return predictions →
   Cross-sectional rank → Long top quintile, short bottom
 
 Critical anti-overfitting practices:
@@ -24,10 +24,11 @@ Critical anti-overfitting practices:
 """
 
 from __future__ import annotations
+
 import logging
-import warnings
-from datetime import datetime, timedelta
-from typing import Optional, Dict, List, Tuple
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import lightgbm as lgb
+
     LGBM_AVAILABLE = True
 except ImportError:
     LGBM_AVAILABLE = False
@@ -43,6 +45,7 @@ except ImportError:
 
 # ── Alpha Factor Library (QLib Alpha158-inspired) ─────────────────────────────
 
+
 def compute_alpha_features(
     prices: pd.DataFrame,
     volumes: Optional[pd.DataFrame] = None,
@@ -50,7 +53,7 @@ def compute_alpha_features(
 ) -> pd.DataFrame:
     """
     Compute ~80 alpha factors for a universe of assets.
-    
+
     Factor families (inspired by QLib Alpha158/Alpha360):
     - Price momentum: multi-period returns, normalized
     - Price reversion: short-term reversion signals
@@ -58,10 +61,10 @@ def compute_alpha_features(
     - Volume/turnover: volume patterns and anomalies
     - Technical: RSI, Bollinger, MACD, ADX
     - Macro: VIX regime, yield curve
-    
+
     All factors are cross-sectionally ranked (rank normalization)
     to remove distributional differences across assets.
-    
+
     Returns: MultiIndex DataFrame (date x asset) x factors
     """
     features = {}
@@ -113,8 +116,8 @@ def compute_alpha_features(
     # ── Technical indicators ─────────────────────────────────────────────────
     # RSI (14-day)
     delta = close.diff()
-    gain = delta.where(delta > 0, 0).ewm(alpha=1/14, adjust=False).mean()
-    loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/14, adjust=False).mean()
+    gain = delta.where(delta > 0, 0).ewm(alpha=1 / 14, adjust=False).mean()
+    loss = (-delta.where(delta < 0, 0)).ewm(alpha=1 / 14, adjust=False).mean()
     features["rsi_14"] = 100 - (100 / (1 + gain / (loss + 1e-8)))
 
     # Bollinger Band position
@@ -139,9 +142,7 @@ def compute_alpha_features(
     if vix is not None:
         vix_aligned = vix.reindex(close.index, method="ffill")
         for col in close.columns:
-            features["vix_level"] = pd.DataFrame(
-                {col: vix_aligned for col in close.columns}
-            )
+            features["vix_level"] = pd.DataFrame({col: vix_aligned for col in close.columns})
         features["vix_20ma"] = features["vix_level"].rolling(20).mean()
 
     # Combine into MultiIndex
@@ -156,22 +157,23 @@ def compute_alpha_features(
 
 # ── Walk-Forward ML Pipeline ───────────────────────────────────────────────────
 
+
 class MLAlphaStrategy:
     """
     Machine learning cross-sectional alpha strategy.
-    
+
     Pipeline (inspired by QLib):
     1. Compute alpha features for full universe
     2. Walk-forward training: train → validate → deploy
     3. LightGBM predicts next-period return rank
     4. Long top quintile, short bottom quintile
     5. IC monitoring: stop trading if IC < threshold
-    
+
     Walk-forward protocol (critical for avoiding look-ahead):
     - Training window: 3-5 years rolling
     - Validation window: 6 months (not used for training)
     - Deployment: 1 month (retrain each month)
-    
+
     This is the correct protocol per Bailey et al. (2014) and
     is used by all serious quant researchers.
     """
@@ -223,10 +225,10 @@ class MLAlphaStrategy:
     ) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Prepare (X, y) for supervised learning.
-        
+
         y = forward return rank (cross-sectional, next 21 bars)
         X = alpha features at time t
-        
+
         CRITICAL: y must be shifted forward in time.
         X at bar t predicts return from t to t+forward_periods.
         We use X at t to predict y at t+forward_periods.
@@ -248,7 +250,11 @@ class MLAlphaStrategy:
             y_row = fwd_returns.loc[date]
 
             # Only use assets with valid data
-            valid = y_row.notna() & x_row.notna().all(level=0) if hasattr(x_row, 'notna') else y_row.notna()
+            valid = (
+                y_row.notna() & x_row.notna().all(level=0)
+                if hasattr(x_row, "notna")
+                else y_row.notna()
+            )
 
             if valid.sum() < 5:
                 continue
@@ -257,7 +263,7 @@ class MLAlphaStrategy:
             y_ranked = y_row[valid].rank(pct=True)
 
             for asset in y_ranked.index:
-                if not hasattr(x_row, 'xs'):
+                if not hasattr(x_row, "xs"):
                     break
                 try:
                     x_asset = x_row.xs(asset, level=1) if x_row.index.nlevels > 1 else x_row[asset]
@@ -301,9 +307,12 @@ class MLAlphaStrategy:
         # Train LightGBM
         self._model = lgb.LGBMRegressor(**self.model_kwargs)
         self._model.fit(
-            X_train, y_train,
+            X_train,
+            y_train,
             eval_set=None,
-            callbacks=[lgb.early_stopping(50, verbose=False)] if hasattr(lgb, 'early_stopping') else None,
+            callbacks=[lgb.early_stopping(50, verbose=False)]
+            if hasattr(lgb, "early_stopping")
+            else None,
         )
 
         self._is_trained = True
@@ -341,7 +350,7 @@ class MLAlphaStrategy:
         predictions = {}
         for asset in self.universe:
             try:
-                if hasattr(x_today, 'xs'):
+                if hasattr(x_today, "xs"):
                     x_asset = x_today.xs(asset, level=1)
                 else:
                     x_asset = x_today[[c for c in x_today.index if str(c).endswith(asset)]]
@@ -372,11 +381,11 @@ class MLAlphaStrategy:
 
         for i, (asset, rank) in enumerate(sorted_assets.items()):
             if i < self.top_n:
-                signals[asset] = 1   # LONG
+                signals[asset] = 1  # LONG
             elif i >= len(sorted_assets) - self.bottom_n:
                 signals[asset] = -1  # SHORT
             else:
-                signals[asset] = 0   # FLAT
+                signals[asset] = 0  # FLAT
 
         return signals
 
@@ -414,15 +423,16 @@ class MLAlphaStrategy:
 
 # ── Turbulence Index (FinRL-inspired risk indicator) ─────────────────────────
 
+
 def compute_turbulence_index(returns: pd.DataFrame, lookback: int = 252) -> pd.Series:
     """
     Mahalanobis distance-based turbulence index.
     Used in FinRL as a market stress indicator.
-    
+
     High turbulence = extreme, unusual market behavior = reduce exposure.
-    
+
     turbulence_t = (y_t - mu)' * Sigma^-1 * (y_t - mu)
-    
+
     where y_t = cross-sectional return vector on day t,
     mu = historical mean, Sigma = historical covariance.
     """
@@ -430,7 +440,7 @@ def compute_turbulence_index(returns: pd.DataFrame, lookback: int = 252) -> pd.S
 
     for i in range(lookback, len(returns)):
         current = returns.iloc[i].values
-        hist = returns.iloc[i - lookback:i]
+        hist = returns.iloc[i - lookback : i]
         mu = hist.mean().values
         cov = hist.cov().values
 

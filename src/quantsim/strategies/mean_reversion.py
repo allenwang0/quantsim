@@ -4,14 +4,15 @@ Ornstein-Uhlenbeck process fitting.
 """
 
 from __future__ import annotations
+
 import logging
-from datetime import datetime
-from typing import List, Optional, Dict, Tuple
+from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
 
-from quantsim.core.events import BarEvent, SignalEvent, Direction
 from quantsim.core.event_queue import EventQueue
+from quantsim.core.events import BarEvent, Direction
 from quantsim.data.data_handler import DataHandler
 from quantsim.strategies.trend import Strategy
 
@@ -21,10 +22,10 @@ logger = logging.getLogger(__name__)
 class BollingerBandMeanReversion(Strategy):
     """
     Bollinger Band mean reversion with z-score entry.
-    
+
     z = (close - SMA(N)) / (k * std(N))
     Long when z < -2.0, short when z > 2.0, exit at z = 0.
-    
+
     Regime filter: only trade when ADX(14) < 20 (range-bound).
     Parameters: N in [10, 30], k = 2.0 (convention).
     """
@@ -70,7 +71,7 @@ class BollingerBandMeanReversion(Strategy):
             return
 
         closes = bars["adj_close"] if "adj_close" in bars.columns else bars["close"]
-        window_closes = closes.iloc[-self.window:]
+        window_closes = closes.iloc[-self.window :]
 
         sma = window_closes.mean()
         std = window_closes.std()
@@ -85,7 +86,9 @@ class BollingerBandMeanReversion(Strategy):
             if current_direction != Direction.LONG:
                 self._positions[asset_id] = Direction.LONG
                 self._emit_signal(
-                    asset_id, Direction.LONG, event.timestamp,
+                    asset_id,
+                    Direction.LONG,
+                    event.timestamp,
                     confidence=min(1.0, abs(z_score) / (self.entry_z * 2)),
                     signal_type="bollinger_mr",
                     holding_period=self.window // 2,
@@ -95,7 +98,9 @@ class BollingerBandMeanReversion(Strategy):
             if current_direction != Direction.SHORT:
                 self._positions[asset_id] = Direction.SHORT
                 self._emit_signal(
-                    asset_id, Direction.SHORT, event.timestamp,
+                    asset_id,
+                    Direction.SHORT,
+                    event.timestamp,
                     confidence=min(1.0, abs(z_score) / (self.entry_z * 2)),
                     signal_type="bollinger_mr",
                     holding_period=self.window // 2,
@@ -104,7 +109,9 @@ class BollingerBandMeanReversion(Strategy):
         elif abs(z_score) < self.exit_z and current_direction != Direction.FLAT:
             self._positions[asset_id] = Direction.FLAT
             self._emit_signal(
-                asset_id, Direction.FLAT, event.timestamp,
+                asset_id,
+                Direction.FLAT,
+                event.timestamp,
                 signal_type="bollinger_exit",
                 metadata={"z_score": float(z_score)},
             )
@@ -113,11 +120,11 @@ class BollingerBandMeanReversion(Strategy):
 class RSIMeanReversion(Strategy):
     """
     RSI-based mean reversion with SMA confirmation filter.
-    
+
     Buy RSI < 30 (oversold) with close above 200-day SMA (trend filter: no falling knives).
     Sell RSI > 70 (overbought) for long_only=False.
     Exit when RSI returns to 50 or after max_hold_bars.
-    
+
     Confirmation rule dramatically improves long-side win rates in backtests.
     """
 
@@ -155,8 +162,8 @@ class RSIMeanReversion(Strategy):
         gain = delta.where(delta > 0, 0)
         loss = -delta.where(delta < 0, 0)
 
-        avg_gain = gain.ewm(alpha=1/self.rsi_period, adjust=False).mean()
-        avg_loss = loss.ewm(alpha=1/self.rsi_period, adjust=False).mean()
+        avg_gain = gain.ewm(alpha=1 / self.rsi_period, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1 / self.rsi_period, adjust=False).mean()
 
         rs = avg_gain.iloc[-1] / avg_loss.iloc[-1] if avg_loss.iloc[-1] > 0 else 100
         return 100 - (100 / (1 + rs))
@@ -176,7 +183,7 @@ class RSIMeanReversion(Strategy):
 
         closes = bars["adj_close"] if "adj_close" in bars.columns else bars["close"]
         rsi = self._compute_rsi(closes)
-        sma_200 = closes.iloc[-self.trend_filter:].mean()
+        sma_200 = closes.iloc[-self.trend_filter :].mean()
         current_close = closes.iloc[-1]
         current_direction = self._positions[asset_id]
 
@@ -187,7 +194,9 @@ class RSIMeanReversion(Strategy):
                 self._positions[asset_id] = Direction.FLAT
                 self._hold_counter[asset_id] = 0
                 self._emit_signal(
-                    asset_id, Direction.FLAT, event.timestamp,
+                    asset_id,
+                    Direction.FLAT,
+                    event.timestamp,
                     signal_type="rsi_time_exit",
                 )
                 return
@@ -212,7 +221,9 @@ class RSIMeanReversion(Strategy):
                 self._positions[asset_id] = Direction.LONG
                 self._hold_counter[asset_id] = 0
                 self._emit_signal(
-                    asset_id, Direction.LONG, event.timestamp,
+                    asset_id,
+                    Direction.LONG,
+                    event.timestamp,
                     confidence=1.0 - rsi / 100,
                     signal_type="rsi_oversold",
                     metadata={"rsi": float(rsi), "sma_200": float(sma_200)},
@@ -222,7 +233,9 @@ class RSIMeanReversion(Strategy):
             self._positions[asset_id] = Direction.SHORT
             self._hold_counter[asset_id] = 0
             self._emit_signal(
-                asset_id, Direction.SHORT, event.timestamp,
+                asset_id,
+                Direction.SHORT,
+                event.timestamp,
                 confidence=rsi / 100,
                 signal_type="rsi_overbought",
                 metadata={"rsi": float(rsi)},
@@ -237,10 +250,10 @@ class PairsTradingStrategy(Strategy):
     The filter updates once per date, after both legs have a bar with the
     same timestamp. Prices are divided by asset B's first price before the
     update, so the hedge ratio does not depend on the price level.
-    
+
     Entry: z-score of spread > 2.0 (short A, long B) or < -2.0 (long A, short B).
     Exit: z-score crosses 0, or stop at ±3.5 (the relationship has broken down).
-    
+
     Reference: Vidyamurthy (2004)
     """
 
@@ -270,10 +283,10 @@ class PairsTradingStrategy(Strategy):
         self.z_window = z_window
 
         # Kalman filter state for dynamic hedge ratio
-        self._kalman_beta = 1.0          # hedge ratio estimate
-        self._kalman_P = 1.0             # error covariance
+        self._kalman_beta = 1.0  # hedge ratio estimate
+        self._kalman_P = 1.0  # error covariance
         self._Q = kalman_transition_cov  # process noise
-        self._R = kalman_observation_cov # observation noise
+        self._R = kalman_observation_cov  # observation noise
 
         self._spread_history: List[float] = []
         self._current_pair_direction: int = 0  # +1 long A, -1 short A, 0 flat
@@ -332,12 +345,12 @@ class PairsTradingStrategy(Strategy):
         self._spread_history.append(spread)
 
         if len(self._spread_history) > self.z_window * 3:
-            self._spread_history = self._spread_history[-self.z_window * 2:]
+            self._spread_history = self._spread_history[-self.z_window * 2 :]
 
         if len(self._spread_history) < self.z_window:
             return
 
-        recent_spread = self._spread_history[-self.z_window:]
+        recent_spread = self._spread_history[-self.z_window :]
         spread_mean = np.mean(recent_spread)
         spread_std = np.std(recent_spread)
 
@@ -351,12 +364,18 @@ class PairsTradingStrategy(Strategy):
             if abs(z_score) < self.exit_z or abs(z_score) > self.stop_z:
                 self._current_pair_direction = 0
                 self._emit_signal(
-                    self.asset_a, Direction.FLAT, event.timestamp,
-                    signal_type="pairs_exit", metadata={"z_score": float(z_score)},
+                    self.asset_a,
+                    Direction.FLAT,
+                    event.timestamp,
+                    signal_type="pairs_exit",
+                    metadata={"z_score": float(z_score)},
                 )
                 self._emit_signal(
-                    self.asset_b, Direction.FLAT, event.timestamp,
-                    signal_type="pairs_exit", metadata={"z_score": float(z_score)},
+                    self.asset_b,
+                    Direction.FLAT,
+                    event.timestamp,
+                    signal_type="pairs_exit",
+                    metadata={"z_score": float(z_score)},
                 )
                 return
 
@@ -366,13 +385,17 @@ class PairsTradingStrategy(Strategy):
                 # Spread too wide: short A, long B
                 self._current_pair_direction = -1
                 self._emit_signal(
-                    self.asset_a, Direction.SHORT, event.timestamp,
+                    self.asset_a,
+                    Direction.SHORT,
+                    event.timestamp,
                     confidence=min(1.0, abs(z_score) / (self.entry_z * 2)),
                     signal_type="pairs_spread_wide",
                     metadata={"z_score": float(z_score), "beta": float(self._kalman_beta)},
                 )
                 self._emit_signal(
-                    self.asset_b, Direction.LONG, event.timestamp,
+                    self.asset_b,
+                    Direction.LONG,
+                    event.timestamp,
                     confidence=min(1.0, abs(z_score) / (self.entry_z * 2)),
                     signal_type="pairs_spread_wide",
                     metadata={"z_score": float(z_score), "beta": float(self._kalman_beta)},
@@ -382,13 +405,17 @@ class PairsTradingStrategy(Strategy):
                 # Spread too narrow: long A, short B
                 self._current_pair_direction = 1
                 self._emit_signal(
-                    self.asset_a, Direction.LONG, event.timestamp,
+                    self.asset_a,
+                    Direction.LONG,
+                    event.timestamp,
                     confidence=min(1.0, abs(z_score) / (self.entry_z * 2)),
                     signal_type="pairs_spread_narrow",
                     metadata={"z_score": float(z_score), "beta": float(self._kalman_beta)},
                 )
                 self._emit_signal(
-                    self.asset_b, Direction.SHORT, event.timestamp,
+                    self.asset_b,
+                    Direction.SHORT,
+                    event.timestamp,
                     confidence=min(1.0, abs(z_score) / (self.entry_z * 2)),
                     signal_type="pairs_spread_narrow",
                     metadata={"z_score": float(z_score), "beta": float(self._kalman_beta)},

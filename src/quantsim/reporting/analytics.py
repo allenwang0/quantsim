@@ -4,11 +4,12 @@ Deflated Sharpe Ratio, trade statistics, benchmark comparison, rolling metrics.
 """
 
 from __future__ import annotations
+
 import logging
-import json
 import sqlite3
 from datetime import datetime
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -67,7 +68,7 @@ class PerformanceAnalytics:
     """
     Computes the full performance analytics suite from a portfolio equity curve
     and trade log.
-    
+
     All metrics documented:
     - Return: total return, CAGR, monthly distribution
     - Risk: Sharpe, Sortino, Calmar, max drawdown, drawdown duration
@@ -81,7 +82,7 @@ class PerformanceAnalytics:
 
     def compute_all(
         self,
-        equity_curve: pd.Series,      # index=datetime, values=portfolio equity
+        equity_curve: pd.Series,  # index=datetime, values=portfolio equity
         trades: Optional[pd.DataFrame] = None,
         benchmark: Optional[pd.Series] = None,
         n_strategies_tested: int = 1,  # for deflated Sharpe calculation
@@ -129,7 +130,11 @@ class PerformanceAnalytics:
         # Sharpe ratio (annualized properly, not sqrt(12) * monthly)
         daily_rf = self.risk_free_rate / 252
         excess_returns = daily_returns - daily_rf
-        sharpe = float(excess_returns.mean() / excess_returns.std() * np.sqrt(252)) if excess_returns.std() > 0 else 0
+        sharpe = (
+            float(excess_returns.mean() / excess_returns.std() * np.sqrt(252))
+            if excess_returns.std() > 0
+            else 0
+        )
         results["sharpe_ratio"] = sharpe
 
         # Sortino: downside deviation below the risk-free target, over all periods
@@ -137,7 +142,8 @@ class PerformanceAnalytics:
         downside_dev = float(np.sqrt(np.mean(shortfall**2)))
         sortino = (
             float(excess_returns.mean() / downside_dev * np.sqrt(TRADING_DAYS_PER_YEAR))
-            if downside_dev > 0 else 0.0
+            if downside_dev > 0
+            else 0.0
         )
         results["sortino_ratio"] = sortino
 
@@ -189,15 +195,17 @@ class PerformanceAnalytics:
         if trades is not None and not trades.empty and "quantity" in trades.columns:
             avg_equity = float(equity_curve.mean())
             if avg_equity > 0:
-                total_traded = float((trades.get("quantity", pd.Series()) * trades.get("entry_price", pd.Series())).abs().sum())
+                total_traded = float(
+                    (trades.get("quantity", pd.Series()) * trades.get("entry_price", pd.Series()))
+                    .abs()
+                    .sum()
+                )
                 turnover = total_traded / avg_equity / max(n_years, 1)
                 results["annual_turnover"] = turnover
 
         return results
 
-    def _compute_drawdowns(
-        self, equity: pd.Series
-    ) -> Tuple[pd.Series, float, float, int]:
+    def _compute_drawdowns(self, equity: pd.Series) -> Tuple[pd.Series, float, float, int]:
         """
         Returns (drawdown_series, max_drawdown, avg_drawdown, max_duration_days).
         Drawdown series: negative fractions from rolling peak.
@@ -217,14 +225,12 @@ class PerformanceAnalytics:
             if val < -1e-6 and current_start is None:
                 current_start = ts
             elif val >= -1e-6 and current_start is not None:
-                if hasattr(ts, 'to_pydatetime') and hasattr(current_start, 'to_pydatetime'):
+                if hasattr(ts, "to_pydatetime") and hasattr(current_start, "to_pydatetime"):
                     duration = (ts - current_start).days
                 else:
                     duration = i
                 max_duration = max(max_duration, duration)
-                drawdown_magnitudes.append(
-                    float(drawdown[current_start:ts].min())
-                )
+                drawdown_magnitudes.append(float(drawdown[current_start:ts].min()))
                 current_start = None
 
         avg_dd = float(np.mean(drawdown_magnitudes)) if drawdown_magnitudes else 0.0
@@ -254,9 +260,7 @@ class PerformanceAnalytics:
         calmar = rolling_cagr / rolling_dd.abs().replace(0, np.nan)
         return calmar.fillna(0)
 
-    def _benchmark_comparison(
-        self, strategy_returns: pd.Series, benchmark: pd.Series
-    ) -> Dict:
+    def _benchmark_comparison(self, strategy_returns: pd.Series, benchmark: pd.Series) -> Dict:
         """Alpha, beta, information ratio vs benchmark."""
         bench_returns = benchmark.pct_change().dropna()
 
@@ -276,7 +280,11 @@ class PerformanceAnalytics:
 
         # Information ratio
         active_returns = aligned["strategy"] - aligned["benchmark"]
-        ir = float(active_returns.mean() / active_returns.std() * np.sqrt(252)) if active_returns.std() > 0 else 0
+        ir = (
+            float(active_returns.mean() / active_returns.std() * np.sqrt(252))
+            if active_returns.std() > 0
+            else 0
+        )
 
         bench_total = (1 + aligned["benchmark"]).prod() - 1
         strat_total = (1 + aligned["strategy"]).prod() - 1
@@ -303,10 +311,14 @@ class PerformanceAnalytics:
         win_rate = len(wins) / len(pnls) if len(pnls) > 0 else 0
         avg_win = float(wins.mean()) if len(wins) > 0 else 0
         avg_loss = float(losses.mean()) if len(losses) > 0 else 0
-        profit_factor = float(wins.sum() / abs(losses.sum())) if abs(losses.sum()) > 0 else float("inf")
+        profit_factor = (
+            float(wins.sum() / abs(losses.sum())) if abs(losses.sum()) > 0 else float("inf")
+        )
         expectancy = win_rate * avg_win - (1 - win_rate) * abs(avg_loss)
 
-        avg_holding = float(closed["holding_bars"].mean()) if "holding_bars" in closed.columns else 0
+        avg_holding = (
+            float(closed["holding_bars"].mean()) if "holding_bars" in closed.columns else 0
+        )
 
         # Minimum sample size warning
         n_trades = len(closed)
@@ -327,15 +339,16 @@ class PerformanceAnalytics:
             "insufficient_sample_warning": insufficient_sample,
             "sample_warning_message": (
                 f"Only {n_trades} trades: Sharpe unreliable below 30 independent trades"
-                if insufficient_sample else ""
+                if insufficient_sample
+                else ""
             ),
         }
 
     def print_summary(self, results: Dict) -> None:
         """Print a formatted performance summary to stdout."""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("PERFORMANCE SUMMARY")
-        print("="*60)
+        print("=" * 60)
         print(f"  Total Return:          {results.get('total_return', 0):.2%}")
         print(f"  CAGR:                  {results.get('cagr', 0):.2%}")
         print(f"  Annual Volatility:     {results.get('annual_volatility', 0):.2%}")
@@ -359,12 +372,13 @@ class PerformanceAnalytics:
             print(f"  Avg Holding:           {results.get('avg_holding_bars', 0):.1f} bars")
             if results.get("insufficient_sample_warning"):
                 print(f"  ⚠ WARNING: {results.get('sample_warning_message', '')}")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
 
 def load_equity_curve_from_db(db_path: str) -> pd.Series:
     """Load portfolio equity curve from database snapshots."""
     import sqlite3
+
     conn = sqlite3.connect(db_path)
     try:
         rows = conn.execute(
@@ -397,8 +411,20 @@ def load_trades_from_db(db_path: str) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame()
 
-    return pd.DataFrame(rows, columns=[
-        "trade_id", "strategy_id", "asset_id", "direction",
-        "entry_timestamp", "exit_timestamp", "entry_price", "exit_price",
-        "quantity", "realized_pnl", "commission", "holding_bars",
-    ])
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "trade_id",
+            "strategy_id",
+            "asset_id",
+            "direction",
+            "entry_timestamp",
+            "exit_timestamp",
+            "entry_price",
+            "exit_price",
+            "quantity",
+            "realized_pnl",
+            "commission",
+            "holding_bars",
+        ],
+    )

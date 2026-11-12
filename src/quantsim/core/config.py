@@ -7,7 +7,7 @@ that a user might want to change.
 
 Usage:
     from quantsim.core.config import config
-    
+
     print(config.initial_capital)
     print(config.db_path)
     config.slippage_model = "fixed"
@@ -28,12 +28,13 @@ Override via config file (quantsim.toml or quantsim.json):
 """
 
 from __future__ import annotations
-import os
+
 import json
 import logging
+import os
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +49,7 @@ CONFIG_FILE_PATHS = [
 class DatabaseConfig:
     path: str = field(
         default_factory=lambda: os.environ.get(
-            "QUANTSIM_DB",
-            str(Path.home() / ".quantsim" / "quantsim.db")
+            "QUANTSIM_DB", str(Path.home() / ".quantsim" / "quantsim.db")
         )
     )
     journal_mode: str = "WAL"
@@ -64,15 +64,15 @@ class BacktestConfig:
     warmup_bars: int = 252
     slippage_model: str = field(
         default_factory=lambda: os.environ.get("QUANTSIM_SLIPPAGE", "volume")
-    )   # "none" | "fixed" | "volume"
+    )  # "none" | "fixed" | "volume"
     commission_model: str = field(
         default_factory=lambda: os.environ.get("QUANTSIM_COMMISSION", "zero")
-    )   # "zero" | "per_share" | "per_contract"
-    fill_model: str = "next_bar_open"   # "immediate" | "next_bar_open" | "vwap"
+    )  # "zero" | "per_share" | "per_contract"
+    fill_model: str = "next_bar_open"  # "immediate" | "next_bar_open" | "vwap"
     max_drawdown_halt: float = -0.15
     max_drawdown_close: float = -0.20
     max_position_pct: float = 0.10
-    slippage_k: float = 0.10            # Almgren-Chriss impact constant
+    slippage_k: float = 0.10  # Almgren-Chriss impact constant
     fixed_spread_bps: float = 5.0
 
 
@@ -99,12 +99,8 @@ def resolve_alpaca_paper() -> bool:
 
 @dataclass
 class LiveTradingConfig:
-    alpaca_api_key: str = field(
-        default_factory=lambda: os.environ.get("ALPACA_API_KEY", "")
-    )
-    alpaca_secret_key: str = field(
-        default_factory=lambda: os.environ.get("ALPACA_SECRET_KEY", "")
-    )
+    alpaca_api_key: str = field(default_factory=lambda: os.environ.get("ALPACA_API_KEY", ""))
+    alpaca_secret_key: str = field(default_factory=lambda: os.environ.get("ALPACA_SECRET_KEY", ""))
     alpaca_paper: bool = field(default_factory=resolve_alpaca_paper)
     poll_interval_seconds: float = 60.0  # for daily-bar strategies
     fill_poll_seconds: float = 5.0
@@ -140,17 +136,28 @@ class PortfolioOptConfig:
 
 @dataclass
 class DataConfig:
-    fred_api_key: str = field(
-        default_factory=lambda: os.environ.get("FRED_API_KEY", "")
-    )
+    fred_api_key: str = field(default_factory=lambda: os.environ.get("FRED_API_KEY", ""))
     yfinance_sleep_between_requests: float = 0.5
     bootstrap_start: str = "2010-01-01"
     max_universe_size: int = 500
-    options_liquid_universe: List[str] = field(default_factory=lambda: [
-        "SPY", "QQQ", "IWM", "GLD", "TLT",
-        "AAPL", "MSFT", "AMZN", "NVDA", "META",
-        "GOOGL", "TSLA", "JPM", "GS",
-    ])
+    options_liquid_universe: List[str] = field(
+        default_factory=lambda: [
+            "SPY",
+            "QQQ",
+            "IWM",
+            "GLD",
+            "TLT",
+            "AAPL",
+            "MSFT",
+            "AMZN",
+            "NVDA",
+            "META",
+            "GOOGL",
+            "TSLA",
+            "JPM",
+            "GS",
+        ]
+    )
 
 
 @dataclass
@@ -251,9 +258,7 @@ class QuantSimConfig:
                 "paper trading will simulate fills locally"
             )
         if not self.data.fred_api_key:
-            warnings.append(
-                "FRED_API_KEY not set: macro data download may be rate-limited"
-            )
+            warnings.append("FRED_API_KEY not set: macro data download may be rate-limited")
         if self.backtest.initial_capital < 1000:
             warnings.append("initial_capital < $1000: position sizing will be impractical")
         if self.backtest.max_drawdown_halt > 0:

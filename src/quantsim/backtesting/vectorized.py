@@ -18,10 +18,11 @@ Numba JIT compilation makes the portfolio simulation loop C-speed.
 """
 
 from __future__ import annotations
+
 import logging
 import time
-from datetime import datetime
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 
@@ -29,24 +30,30 @@ logger = logging.getLogger(__name__)
 
 try:
     from numba import njit, prange
+
     NUMBA_AVAILABLE = True
 except ImportError:
     NUMBA_AVAILABLE = False
     logger.warning("Numba not available: vectorized engine will be slower")
+
     def njit(*args, **kwargs):
-        def decorator(fn): return fn
+        def decorator(fn):
+            return fn
+
         return decorator
-    def prange(n): return range(n)
+
+    def prange(n):
+        return range(n)
 
 
 @njit(cache=True)
 def _simulate_portfolio_numba(
-    prices: np.ndarray,          # (n_bars, n_assets)
-    signals: np.ndarray,          # (n_bars, n_assets) values in {-1, 0, 1}
+    prices: np.ndarray,  # (n_bars, n_assets)
+    signals: np.ndarray,  # (n_bars, n_assets) values in {-1, 0, 1}
     initial_capital: float,
-    commission_rate: float,        # fraction of trade value
-    slippage_pct: float,           # fraction of price per trade
-    position_size_pct: float,      # fraction of equity per position at entry
+    commission_rate: float,  # fraction of trade value
+    slippage_pct: float,  # fraction of price per trade
+    position_size_pct: float,  # fraction of equity per position at entry
     rebalance_threshold: float = np.inf,
 ) -> Tuple:
     """
@@ -112,16 +119,16 @@ def _simulate_portfolio_numba(
 class VectorizedBacktester:
     """
     High-speed vectorized backtester for strategy research and parameter optimization.
-    
+
     Architecture:
     1. Load price matrix (n_bars x n_assets) once
-    2. Compute signal matrix using vectorized pandas/numpy operations  
+    2. Compute signal matrix using vectorized pandas/numpy operations
     3. Run portfolio simulation in one Numba-compiled pass
     4. Compute all analytics from the resulting equity curve
-    
+
     Speed: ~1ms for 10 years of daily data on 50 assets (vs ~2s for event-driven).
     This enables parameter sweeps across hundreds of configurations in seconds.
-    
+
     Signal functions must use only data through bar t for the signal at t.
     The simulator applies the one-bar execution delay; signal functions do
     not shift.
@@ -129,11 +136,11 @@ class VectorizedBacktester:
 
     def __init__(
         self,
-        prices: pd.DataFrame,           # columns=assets, index=DatetimeIndex
+        prices: pd.DataFrame,  # columns=assets, index=DatetimeIndex
         initial_capital: float = 100_000,
         commission_rate: float = 0.001,  # 0.1% per trade
-        slippage_pct: float = 0.001,     # 0.1% slippage
-        position_size_pct: float = 0.10, # 10% per position
+        slippage_pct: float = 0.001,  # 0.1% slippage
+        position_size_pct: float = 0.10,  # 10% per position
     ):
         self.prices = prices.ffill().dropna(how="all")
         self.initial_capital = initial_capital
@@ -146,8 +153,7 @@ class VectorizedBacktester:
         self.log_returns = np.log(self.prices / self.prices.shift(1)).fillna(0)
 
         logger.info(
-            f"VectorizedBacktester: {len(self.prices)} bars x "
-            f"{len(self.prices.columns)} assets"
+            f"VectorizedBacktester: {len(self.prices)} bars x {len(self.prices.columns)} assets"
         )
 
     def run(
@@ -158,7 +164,7 @@ class VectorizedBacktester:
     ) -> Dict:
         """
         Run a backtest with a signal function.
-        
+
         signal_fn(prices, returns, **kwargs) -> pd.DataFrame
             Returns a signal DataFrame (same shape as prices)
             with values in {-1, 0, 1}: the position wanted at each bar's
@@ -190,14 +196,15 @@ class VectorizedBacktester:
 
         # Compute analytics
         from quantsim.reporting.analytics import PerformanceAnalytics
+
         analytics = PerformanceAnalytics()
         results = analytics.compute_all(
             equity_curve=equity_series,
             benchmark=benchmark,
         )
         # Store equity curve for downstream use (tearsheet, WFO, regime analysis)
-        results['_equity_curve'] = equity_series.values.tolist()
-        results['_equity_dates'] = [str(d) for d in equity_series.index]
+        results["_equity_curve"] = equity_series.values.tolist()
+        results["_equity_dates"] = [str(d) for d in equity_series.index]
         results["_meta"] = {
             "engine": "vectorized",
             "elapsed_seconds": elapsed,
@@ -217,11 +224,11 @@ class VectorizedBacktester:
         """
         Run backtests across a grid of parameters. Returns a DataFrame
         sorted by Sharpe ratio with all metrics for each configuration.
-        
+
         This is the canonical approach to strategy research:
         test many configurations, apply Deflated Sharpe Ratio to
         correct for multiple testing.
-        
+
         Example:
           param_grid = {"fast": [10, 20, 50], "slow": [100, 200]}
           Runs 6 backtests, returns results ranked by Sharpe.
@@ -241,9 +248,16 @@ class VectorizedBacktester:
             try:
                 result = self.run(signal_fn, signal_kwargs=kwargs, benchmark=benchmark)
                 row = {k: v for k, v in kwargs.items()}
-                for metric in ["sharpe_ratio", "cagr", "max_drawdown", "calmar_ratio",
-                               "sortino_ratio", "deflated_sharpe_ratio", "total_return",
-                               "annual_volatility"]:
+                for metric in [
+                    "sharpe_ratio",
+                    "cagr",
+                    "max_drawdown",
+                    "calmar_ratio",
+                    "sortino_ratio",
+                    "deflated_sharpe_ratio",
+                    "total_return",
+                    "annual_volatility",
+                ]:
                     row[metric] = result.get(metric, 0)
                 row["_meta_trade_count"] = result.get("_meta", {}).get("trade_count", 0)
                 rows.append(row)
@@ -254,6 +268,7 @@ class VectorizedBacktester:
 
         if not df.empty:
             from quantsim.reporting.analytics import TRADING_DAYS_PER_YEAR, deflated_sharpe_ratio
+
             per_period = df["sharpe_ratio"].to_numpy(dtype=float) / np.sqrt(TRADING_DAYS_PER_YEAR)
             trial_variance = float(np.var(per_period, ddof=1)) if len(per_period) > 1 else 0.0
             df["deflated_sharpe_corrected"] = [
@@ -272,6 +287,7 @@ class VectorizedBacktester:
 
 
 # ── Vectorized Signal Functions ────────────────────────────────────────────────
+
 
 def sma_crossover_signal(
     prices: pd.DataFrame,
@@ -300,12 +316,13 @@ def rsi_signal(
     long_only: bool = True,
 ) -> pd.DataFrame:
     """RSI mean-reversion signal."""
+
     def compute_rsi(series, n):
         delta = series.diff()
         gain = delta.where(delta > 0, 0)
         loss = -delta.where(delta < 0, 0)
-        avg_gain = gain.ewm(alpha=1/n, adjust=False).mean()
-        avg_loss = loss.ewm(alpha=1/n, adjust=False).mean()
+        avg_gain = gain.ewm(alpha=1 / n, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1 / n, adjust=False).mean()
         rs = avg_gain / avg_loss.replace(0, 1e-10)
         return 100 - (100 / (1 + rs))
 
@@ -351,7 +368,7 @@ def bollinger_signal(
     lower = sma - k * std
 
     signal = pd.DataFrame(0, index=prices.index, columns=prices.columns)
-    signal[prices < lower] = 1   # oversold: go long
+    signal[prices < lower] = 1  # oversold: go long
     if not long_only:
         signal[prices > upper] = -1  # overbought: go short
     return signal
