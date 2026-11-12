@@ -121,6 +121,20 @@ def fetch_equity_history(
     return results
 
 
+def session_epoch(ts) -> int:
+    """
+    Epoch seconds for a daily bar's session date at UTC midnight.
+
+    yfinance indexes daily bars by naive exchange dates; converting a naive
+    datetime with .timestamp() would apply the machine's time zone, so a run
+    in Tokyo and one in New York stored different instants for the same bar.
+    """
+    stamp = pd.Timestamp(ts)
+    if stamp.tz is not None:
+        stamp = stamp.tz_convert("America/New_York").tz_localize(None)
+    return int(stamp.normalize().tz_localize("UTC").timestamp())
+
+
 def _store_symbol_data(symbol: str, data: pd.DataFrame, db_path: str) -> int:
     """Extract one symbol from multi-ticker download and store to DB."""
     try:
@@ -166,7 +180,7 @@ def _store_symbol_data(symbol: str, data: pd.DataFrame, db_path: str) -> int:
                 if not raw_bar.validate():
                     continue
 
-                ts_epoch = int(raw_bar.timestamp.timestamp())
+                ts_epoch = session_epoch(ts)
 
                 conn.execute(
                     """INSERT OR REPLACE INTO raw_bars
@@ -185,7 +199,7 @@ def _store_symbol_data(symbol: str, data: pd.DataFrame, db_path: str) -> int:
                     ),
                 )
 
-                eff_date = int(raw_bar.timestamp.timestamp())
+                eff_date = ts_epoch
                 conn.execute(
                     """INSERT OR REPLACE INTO adjustment_factors
                        (asset_id, effective_date, cumulative_split_factor, cumulative_div_adjustment)
