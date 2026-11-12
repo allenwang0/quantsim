@@ -152,7 +152,11 @@ class FillModel:
     IMMEDIATE_CLOSE = "IMMEDIATE_CLOSE"  # fills at close (unrealistic baseline)
     NEXT_BAR_OPEN = "NEXT_BAR_OPEN"  # correct default for daily strategies
     VWAP = "VWAP"  # (o + h + l + c) / 4
-    PARTIAL = "PARTIAL"  # probabilistic partial fills
+    PARTIAL = "PARTIAL"
+    # Look-ahead reproduction of the pre-3.0 engine: fills at the open of the bar
+    # whose close produced the signal. Only for showing how much that overstated
+    # results; never use it to evaluate a strategy.
+    SAME_BAR_OPEN_LOOKAHEAD = "SAME_BAR_OPEN_LOOKAHEAD"  # probabilistic partial fills
 
     def __init__(self, mode: str = NEXT_BAR_OPEN, partial_threshold: float = 0.10):
         self.mode = mode
@@ -168,9 +172,10 @@ class FillModel:
         """
         Returns fill dict: {price, quantity, partial} or None if no fill.
         """
-        if not next_bar and self.mode != self.IMMEDIATE_CLOSE:
+        same_bar = self.mode in (self.IMMEDIATE_CLOSE, self.SAME_BAR_OPEN_LOOKAHEAD)
+        if not next_bar and not same_bar:
             return None
-        if not current_bar and self.mode == self.IMMEDIATE_CLOSE:
+        if not current_bar and same_bar:
             return None
 
         bar: Dict
@@ -178,6 +183,10 @@ class FillModel:
             assert current_bar is not None
             bar = current_bar
             price = bar.get("adj_close", bar.get("close", 0))
+        elif self.mode == self.SAME_BAR_OPEN_LOOKAHEAD:
+            assert current_bar is not None
+            bar = current_bar
+            price = bar.get("open", 0)
         elif self.mode == self.NEXT_BAR_OPEN:
             assert next_bar is not None
             bar = next_bar
@@ -251,7 +260,7 @@ class BacktestExecutionHandler(ExecutionHandler):
 
     def execute_order(self, order: OrderEvent) -> Optional[FillEvent]:
         """Fill now at T's close (IMMEDIATE_CLOSE) or hold for the next bar."""
-        if self._fill_model.mode == FillModel.IMMEDIATE_CLOSE:
+        if self._fill_model.mode in (FillModel.IMMEDIATE_CLOSE, FillModel.SAME_BAR_OPEN_LOOKAHEAD):
             return self._fill(order, order.timestamp)
         self._pending.setdefault(order.asset_id, []).append(order)
         return None

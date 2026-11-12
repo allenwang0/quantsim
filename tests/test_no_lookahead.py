@@ -51,7 +51,7 @@ class KnowsTodaysClose(Strategy):
             self.long = want_long
 
 
-def run_engine(db_path, strategy_cls, dates, **kwargs):
+def run_engine(db_path, strategy_cls, dates, fill_mode=FillModel.NEXT_BAR_OPEN, **kwargs):
     strategy = strategy_cls(["SYN"], EventQueue(), **kwargs)
     fills = []
     engine = BacktestEngine(
@@ -61,7 +61,7 @@ def run_engine(db_path, strategy_cls, dates, **kwargs):
         initial_capital=100_000,
         slippage_model=NoSlippage(),
         commission_model=ZeroCommission(),
-        fill_mode=FillModel.NEXT_BAR_OPEN,
+        fill_mode=fill_mode,
         warmup_bars=0,
         db_path=db_path,
         verbose=False,
@@ -99,6 +99,26 @@ def test_signal_on_bar_2_fills_at_bar_3_open(tmp_path, stamp):
     assert len(fills) == 1
     assert fills[0].fill_price == pytest.approx(opens[2] + fills[0].slippage)
     assert fills[0].timestamp.date() == dates[2].date()
+
+
+def test_lookahead_flag_reproduces_the_old_same_bar_fill(tmp_path):
+    """The report's fill-timing chart depends on this flag reproducing the bug."""
+    dates = trading_days(5)
+    db_path = str(tmp_path / "five.db")
+    write_bars(
+        db_path,
+        "SYN",
+        dates,
+        [100.0, 100.0, 110.0, 110.5, 111.5],
+        [100.0, 100.0, 110.0, 111.0, 112.0],
+    )
+
+    _, fills = run_engine(
+        db_path, BuyOnBar, dates, fill_mode=FillModel.SAME_BAR_OPEN_LOOKAHEAD, signal_bar=1
+    )
+
+    assert fills[0].fill_price == pytest.approx(100.0)
+    assert fills[0].timestamp.date() == dates[1].date()
 
 
 def test_knowing_todays_close_gives_no_edge_on_random_walks(tmp_path):
