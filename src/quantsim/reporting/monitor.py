@@ -2,7 +2,6 @@
 Live Strategy Health Monitor
 
 Continuously monitors running strategies and emits alerts when:
-- ML model IC drops below threshold (model stale)
 - Portfolio drawdown approaches halt threshold
 - Strategy equity correlation changes unexpectedly
 - Position concentration limit approached
@@ -20,8 +19,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-
-import numpy as np
 
 from quantsim.core.config import config
 
@@ -42,14 +39,12 @@ class StrategyHealthMonitor:
     def __init__(
         self,
         db_path: Optional[str] = None,
-        min_ic: float = 0.02,
         max_dd_warn: float = -0.10,
         max_dd_critical: float = -0.15,
         stale_signal_bars: int = 63,
         vol_spike_multiple: float = 2.0,
     ):
         self.db_path = db_path or config.db_path
-        self.min_ic = min_ic
         self.max_dd_warn = max_dd_warn
         self.max_dd_critical = max_dd_critical
         self.stale_signal_bars = stale_signal_bars
@@ -83,11 +78,7 @@ class StrategyHealthMonitor:
         stale_alerts = self._check_stale_signals(portfolio, timestamp)
         alerts.extend(stale_alerts)
 
-        # 4. ML IC check (reads from DB)
-        ic_alerts = self._check_ml_ic(timestamp)
-        alerts.extend(ic_alerts)
-
-        # 5. GARCH vol spike check (reads from DB)
+        # 4. GARCH vol spike check (reads from DB)
         vol_alerts = self._check_vol_spike(timestamp)
         alerts.extend(vol_alerts)
 
@@ -166,34 +157,6 @@ class StrategyHealthMonitor:
         else:
             self._strategy_flat_bars["portfolio"] = 0
         return alerts
-
-    def _check_ml_ic(self, timestamp: datetime) -> List[Dict]:
-        """Check if ML model IC has dropped below the minimum threshold."""
-        try:
-            from quantsim.core.database import db_conn
-
-            rows = (
-                db_conn(self.db_path)
-                .__enter__()
-                .execute("SELECT ic FROM ml_ic_history ORDER BY eval_date DESC LIMIT 12")
-                .fetchall()
-            )
-            if rows and len(rows) >= 3:
-                ic_values = [r["ic"] for r in rows]
-                rolling_ic = float(np.mean(ic_values))
-                if rolling_ic < self.min_ic:
-                    alert = self._make_alert(
-                        key=f"ml_ic_{timestamp.date()}",
-                        risk_type="ML_IC_DECAY",
-                        message=f"ML model rolling IC {rolling_ic:.4f} below threshold {self.min_ic}. Model may be stale.",
-                        severity="WARNING",
-                        timestamp=timestamp,
-                    )
-                    if alert:
-                        return [alert]
-        except Exception as e:
-            logger.warning(f"IC decay check failed: {e}")
-        return []
 
     def _check_vol_spike(self, timestamp: datetime) -> List[Dict]:
         """Check if GARCH-forecast volatility has spiked significantly."""
