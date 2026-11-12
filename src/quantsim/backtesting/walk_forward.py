@@ -29,6 +29,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from quantsim.reporting.analytics import PerformanceAnalytics
+
 logger = logging.getLogger(__name__)
 
 
@@ -132,13 +134,11 @@ class WalkForwardOptimizer:
         n_configs = len(combinations)
 
         window_results = []
-        oos_equities = []
         trial_sharpes = []
         n_oos_obs = 0
 
         for window in windows:
             train_prices = self.prices.loc[window["train_start"] : window["train_end"]]
-            test_prices = self.prices.loc[window["test_start"] : window["test_end"]]
 
             # Step 1: Find best parameters on training period
             best_params = None
@@ -153,38 +153,35 @@ class WalkForwardOptimizer:
 
             for combo in combinations:
                 kwargs = dict(zip(keys, combo))
-                try:
-                    result = train_backtester.run(signal_fn, signal_kwargs=kwargs)
-                    obj_val = result.get(objective, -np.inf)
-                    trial_sharpes.append(result.get("sharpe_ratio", 0.0))
-                    if obj_val > best_objective_val:
-                        best_objective_val = obj_val
-                        best_params = kwargs
-                except Exception:
-                    pass
+                result = train_backtester.run(signal_fn, signal_kwargs=kwargs)
+                obj_val = result.get(objective, -np.inf)
+                trial_sharpes.append(result.get("sharpe_ratio", 0.0))
+                if obj_val > best_objective_val:
+                    best_objective_val = obj_val
+                    best_params = kwargs
 
             if best_params is None:
                 best_params = dict(zip(keys, combinations[0]))
 
-            # Step 2: Evaluate best parameters on test period (OOS)
+            # Step 2: Evaluate best parameters on the test period (OOS). The run
+            # starts at the training start so indicators are warmed up when the
+            # test window opens; only the test window's equity is scored.
+            history = self.prices.loc[window["train_start"] : window["test_end"]]
             test_backtester = VectorizedBacktester(
-                prices=test_prices,
+                prices=history,
                 initial_capital=initial_capital,
                 commission_rate=commission_rate,
                 slippage_pct=slippage_pct,
             )
 
-            try:
-                test_result = test_backtester.run(signal_fn, signal_kwargs=best_params)
-                oos_equity = pd.Series(
-                    test_result.get("_equity_curve", [initial_capital]),
-                    name=f"window_{window['window_id']}",
-                )
-                n_oos_obs += max(len(oos_equity) - 1, 0)
-            except Exception as e:
-                logger.warning(f"Test period failed for window {window['window_id']}: {e}")
-                test_result = {}
-                oos_equity = pd.Series([initial_capital])
+            full_run = test_backtester.run(signal_fn, signal_kwargs=best_params)
+            full_equity = pd.Series(full_run["_equity_curve"], index=history.index)
+            test_equity = full_equity.loc[window["test_start"] :]
+            oos_equity = (test_equity / test_equity.iloc[0] * initial_capital).rename(
+                f"window_{window['window_id']}"
+            )
+            test_result = PerformanceAnalytics().compute_all(oos_equity)
+            n_oos_obs += max(len(oos_equity) - 1, 0)
 
             window_results.append(
                 {
@@ -199,9 +196,9 @@ class WalkForwardOptimizer:
                     "oos_return": test_result.get("total_return", 0),
                     "oos_max_dd": test_result.get("max_drawdown", 0),
                     "oos_calmar": test_result.get("calmar_ratio", 0),
+                    "oos_equity": oos_equity,
                 }
             )
-            oos_equities.append(oos_equity)
 
         # Aggregate OOS results
         results_df = pd.DataFrame(window_results)

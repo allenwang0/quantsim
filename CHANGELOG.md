@@ -47,3 +47,8 @@ Fixes in this section change reported backtest results.
   two sessions late and let `get_current_bar` return the next session's
   bar; data downloaded with the machine in New York time filled one
   session late.
+- Walk-forward: out-of-sample windows run with their training history so
+  indicators are warm when the test window opens, and only the test dates
+  are scored. Before, each test window started cold (an SMA 50/200 was flat
+  for 200 of 252 days). A failing parameter configuration now raises
+  instead of being skipped silently.
