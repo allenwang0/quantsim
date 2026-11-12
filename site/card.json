@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "repo": "quantsim",
+  "sha": "487277a94afdb1930684b075298050bdb37e49a6",
+  "generated_at": "2026-11-12T06:26:06Z",
+  "command": "quantsim report --prices tests/fixtures/synthetic_prices.csv --strategy sma momentum --out reports/demo --card",
+  "data_note": "Seeded synthetic GBM with regime shifts, seed 20240611",
+  "metric": {
+    "label": "Deflated Sharpe ratio",
+    "value": 0.0,
+    "unit": "probability",
+    "higher_is_better": true
+  },
+  "takeaway": "SMA crossover: deflated Sharpe 0.0 after 28 trials; out-of-sample return -3.6%.",
+  "chart": {
+    "type": "interval",
+    "x_label": "Annualized Sharpe",
+    "x_unit": "",
+    "x_scale": "linear",
+    "rows": [
+      {
+        "label": "2016-11-25 to 2017-11-13",
+        "low": -1.61,
+        "mid": 0.33,
+        "high": 2.78
+      },
+      {
+        "label": "2017-11-14 to 2018-10-31",
+        "low": -2.68,
+        "mid": -0.99,
+        "high": 0.89
+      },
+      {
+        "label": "2018-11-01 to 2019-10-18",
+        "low": -1.98,
+        "mid": 0.68,
+        "high": 2.94
+      },
+      {
+        "label": "2019-10-21 to 2020-10-06",
+        "low": -3.66,
+        "mid": -1.63,
+        "high": 0.64
+      },
+      {
+        "label": "2020-10-07 to 2021-09-23",
+        "low": -3.19,
+        "mid": -1.08,
+        "high": 0.67
+      },
+      {
+        "label": "2021-09-24 to 2022-09-12",
+        "low": -2.08,
+        "mid": -0.58,
+        "high": 1.13
+      },
+      {
+        "label": "2022-09-13 to 2023-08-30",
+        "low": -2.22,
+        "mid": 0.18,
+        "high": 2.57
+      }
+    ]
+  }
+}
