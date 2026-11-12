@@ -245,7 +245,7 @@ def benchmark_view(path: Optional[Path]) -> Optional[Dict]:
     bench = json.loads(path.read_text())
     largest = bench["rows"][-1]
     bench["takeaway"] = (
-        f"At {largest['assets']} assets the vectorized engine ran in "
+        f"On 10 years of daily bars for {largest['assets']} assets the vectorized engine ran in "
         f"{largest['vectorized_median_s']:.2f} s and the event engine in "
         f"{largest['event_median_s']:.1f} s ({largest['speedup']:.0f}x)."
     )
@@ -436,15 +436,15 @@ td, th { border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; 
       const edges = need(v, "bin_edges", "Sharpe uncertainty");
       const mids = edges.slice(0, -1).map(function (e, i) { return (e + edges[i + 1]) / 2; });
       const top = Math.max.apply(null, v.counts);
-      const rule = function (x, label, dash) {
-        return { x: [x, x], y: [0, top], mode: "lines+text", name: label, text: ["", label], textposition: "top center", line: { color: fg, dash: dash, width: 1.5 }, hoverinfo: "skip" };
+      const rule = function (x, label, dash, width) {
+        return { x: [x, x], y: [0, top], mode: "lines", name: label, line: { color: fg, dash: dash, width: width }, hoverinfo: "skip" };
       };
       Plotly.react(chart, [
         { x: mids, y: v.counts, type: "bar", name: "Bootstrap samples", marker: { color: okabe[4] }, hovertemplate: "Sharpe %{x:.2f}: %{y} samples<extra></extra>" },
-        rule(v.point, "Estimate " + v.point, "solid"),
-        rule(v.ci_low, "2.5% " + v.ci_low, "dash"),
-        rule(v.ci_high, "97.5% " + v.ci_high, "dash"),
-      ], layout({ hovermode: "closest", showlegend: false, bargap: 0.05, xaxis: axis("Annualized Sharpe ratio"), yaxis: axis("Bootstrap samples (count)") }), config);
+        rule(v.point, "Point estimate " + v.point, "solid", 2),
+        rule(v.ci_low, "95% interval " + v.ci_low + " to " + v.ci_high, "dash", 1.5),
+        Object.assign(rule(v.ci_high, "", "dash", 1.5), { showlegend: false }),
+      ], layout({ hovermode: "closest", bargap: 0.05, xaxis: axis("Annualized Sharpe ratio"), yaxis: axis("Bootstrap samples (count)") }), config);
     });
     render("view-cost", function (section, chart) {
       const v = need(s, "cost_sensitivity", "cost sensitivity");
@@ -459,11 +459,12 @@ td, th { border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; 
     const v = results.benchmark;
     if (!v) return empty(chart, "No benchmark results in this run. Run benchmarks/bench_engines.py first.");
     section.querySelector(".takeaway").textContent = need(v, "takeaway", "benchmark");
-    const assets = v.rows.map(function (r) { return String(r.assets) + " assets"; });
+    const assets = v.rows.map(function (r) { return r.assets === 1 ? "1 asset" : String(r.assets) + " assets"; });
+    const narrow = window.innerWidth < 600;
     Plotly.react(chart, [
-      { x: assets, y: v.rows.map(function (r) { return r.vectorized_median_s; }), type: "bar", name: "Vectorized", marker: { color: okabe[0] }, text: v.rows.map(function (r) { return "Vectorized " + r.vectorized_median_s.toFixed(3) + " s"; }), textposition: "outside" },
-      { x: assets, y: v.rows.map(function (r) { return r.event_median_s; }), type: "bar", name: "Event-driven", marker: { color: okabe[1], pattern: { shape: "/" } }, text: v.rows.map(function (r) { return "Event " + r.event_median_s.toFixed(1) + " s"; }), textposition: "outside" },
-    ], layout({ barmode: "group", hovermode: "closest", xaxis: axis("Asset count"), yaxis: axis("Median seconds per 10 years (log scale)", { type: "log" }) }), config);
+      { x: assets, y: v.rows.map(function (r) { return r.vectorized_median_s; }), type: "bar", name: "Vectorized", marker: { color: okabe[0] }, text: v.rows.map(function (r) { return "Vectorized " + r.vectorized_median_s.toFixed(3) + " s"; }), textposition: narrow ? "none" : "outside" },
+      { x: assets, y: v.rows.map(function (r) { return r.event_median_s; }), type: "bar", name: "Event-driven", marker: { color: okabe[1], pattern: { shape: "/" } }, text: v.rows.map(function (r) { return "Event " + r.event_median_s.toFixed(1) + " s"; }), textposition: narrow ? "none" : "outside" },
+    ], layout({ barmode: "group", hovermode: "closest", xaxis: axis("Asset count"), yaxis: axis("Median seconds, log scale", { type: "log" }) }), config);
   });
 
   if (names.length === 0) {

@@ -7,12 +7,14 @@ synthetic. Built from the seeded fixture, so no market data is involved.
 import json
 import re
 from html.parser import HTMLParser
+from pathlib import Path
 
 import pytest
 
 from quantsim.cli import report
 from tests.fixtures import make_fixture
 
+BENCHMARK = Path(__file__).parent.parent / "benchmarks" / "results.json"
 VIEWS = ["fill_timing", "walk_forward", "sharpe_uncertainty", "cost_sensitivity"]
 
 
@@ -50,7 +52,7 @@ def built(tmp_path_factory):
             "--out",
             str(out),
             "--benchmark",
-            str(tmp / "missing.json"),
+            str(BENCHMARK),
         ]
     )
     results = json.loads((out / "results.json").read_text())
@@ -77,6 +79,11 @@ def test_every_view_has_data(built):
         )
         assert strategy["cost_sensitivity"]["cost_bps"] == [0.0, 5.0, 10.0, 25.0]
         assert 0.0 <= strategy["walk_forward"]["dsr"] <= 1.0
+
+
+def test_benchmark_view_uses_the_committed_results(built):
+    results, _ = built
+    assert results["benchmark"]["rows"] == json.loads(BENCHMARK.read_text())["rows"]
 
 
 def test_page_embeds_results_and_labels_synthetic_data(built):
