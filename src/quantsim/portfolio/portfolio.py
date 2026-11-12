@@ -269,6 +269,9 @@ class Portfolio:
                 pos.realized_pnl += realized
                 self.realized_pnl += realized
                 pos.quantity = new_qty
+                if (old_qty > 0) != (new_qty > 0):
+                    pos.average_cost = fill.fill_price
+                    pos.entry_date = fill.timestamp
 
                 if is_buy:
                     self.cash -= fill.fill_price * fill.quantity * multiplier + fill.commission

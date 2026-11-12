@@ -32,3 +32,8 @@ Fixes in this section change reported backtest results.
   it updated twice per date, the first time pairing one leg's new price
   with the other's old one, which also halved the effective z-score window.
   The strategy no longer claims a cointegration test it does not run.
+- Portfolio: a fill that flips a position from long to short (or back)
+  now sets the new position's cost basis to the fill price. Before, the
+  new position kept the old cost, so its unrealized P&L was wrong and
+  equity no longer equalled initial capital plus realized and unrealized
+  P&L.
