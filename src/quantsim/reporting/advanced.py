@@ -35,6 +35,7 @@ class AdvancedAnalytics:
         confidence_level: float = 0.95,
         risk_free_rate: float = 0.05,
         seed=None,
+        return_samples: bool = False,
     ) -> Dict:
         """
         Bootstrap confidence interval for the annualized Sharpe ratio.
@@ -42,7 +43,8 @@ class AdvancedAnalytics:
         Uses the stationary bootstrap (Politis and Romano 1994): blocks of
         geometric length with mean sqrt(n), wrapping circularly at the end of
         the series, which keeps short-range autocorrelation. seed is an int or
-        a numpy Generator; the same seed gives the same interval.
+        a numpy Generator; the same seed gives the same interval. With
+        return_samples, the bootstrap Sharpe samples are returned under "samples".
         """
         n = len(daily_returns)
         if n < 30:
@@ -73,7 +75,7 @@ class AdvancedAnalytics:
             (daily_returns.mean() - rf_daily) / (daily_returns.std() + 1e-10) * np.sqrt(252)
         )
 
-        return {
+        result = {
             "sharpe_point_estimate": actual_sharpe,
             "sharpe_ci_low": ci_low,
             "sharpe_ci_high": ci_high,
@@ -84,6 +86,9 @@ class AdvancedAnalytics:
                 "Wide confidence interval: need more data" if (ci_high - ci_low) > 1.0 else ""
             ),
         }
+        if return_samples:
+            result["samples"] = sharpe_samples
+        return result
 
     @staticmethod
     def factor_decay_analysis(

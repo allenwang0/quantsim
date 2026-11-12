@@ -58,6 +58,7 @@ markers = [
     "live: requires live data/API",
     "slow: takes > 5 seconds",
     "gpu: requires GPU",
+    "browser: renders the report in Playwright's Chromium",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

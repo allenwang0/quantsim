@@ -53,3 +53,4 @@ Thumbs.db
 tests/fixtures/synthetic_prices.*
 site/*
 !site/card.json
+.playwright/

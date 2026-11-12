@@ -21,6 +21,7 @@ COMMANDS = {
         "Download price and macro history into the local database",
     ),
     "stress": ("quantsim.cli.stress", "Run a strategy over historical stress periods"),
+    "report": ("quantsim.cli.report", "Build the HTML backtest report and results.json"),
 }
 
 

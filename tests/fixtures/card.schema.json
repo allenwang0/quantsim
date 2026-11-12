@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://allenwang0.github.io/card.schema.json",
+  "title": "site/card.json, schema_version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repo", "sha", "generated_at", "command", "data_note", "metric", "takeaway", "chart"],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "repo": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "(Z|\\+00:00)$"
+    },
+    "command": {
+      "type": "string",
+      "minLength": 1
+    },
+    "data_note": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "value", "unit", "higher_is_better"],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "higher_is_better": {
+          "type": "boolean"
+        }
+      }
+    },
+    "takeaway": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 140
+    },
+    "chart": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/number_line"
+        },
+        {
+          "$ref": "#/$defs/time_line"
+        },
+        {
+          "$ref": "#/$defs/interval"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "unit": {
+      "type": "string"
+    },
+    "number_point": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "items": false,
+      "minItems": 2
+    },
+    "time_point": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "string",
+          "format": "date"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "items": false,
+      "minItems": 2
+    },
+    "interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "x_label", "x_unit", "x_scale", "rows"],
+      "properties": {
+        "type": {
+          "const": "interval"
+        },
+        "x_label": {
+          "$ref": "#/$defs/label"
+        },
+        "x_unit": {
+          "$ref": "#/$defs/unit"
+        },
+        "x_scale": {
+          "enum": ["linear", "log"]
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "low", "mid", "high"],
+            "properties": {
+              "label": {
+                "$ref": "#/$defs/label"
+              },
+              "low": {
+                "type": "number"
+              },
+              "mid": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "number_series": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "style", "points"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/label"
+        },
+        "style": {
+          "enum": ["solid", "dashed", "dots"]
+        },
+        "points": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/number_point"
+          }
+        }
+      }
+    },
+    "time_series": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "style", "points"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/label"
+        },
+        "style": {
+          "enum": ["solid", "dashed", "dots"]
+        },
+        "points": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/time_point"
+          }
+        }
+      }
+    },
+    "number_line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "x_label", "x_unit", "x_scale", "y_label", "y_unit", "y_scale", "series"],
+      "properties": {
+        "type": {
+          "const": "line"
+        },
+        "x_label": {
+          "$ref": "#/$defs/label"
+        },
+        "x_unit": {
+          "$ref": "#/$defs/unit"
+        },
+        "x_scale": {
+          "enum": ["linear", "log"]
+        },
+        "y_label": {
+          "$ref": "#/$defs/label"
+        },
+        "y_unit": {
+          "$ref": "#/$defs/unit"
+        },
+        "y_scale": {
+          "enum": ["linear", "log"]
+        },
+        "series": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/number_series"
+          }
+        }
+      }
+    },
+    "time_line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "x_label", "x_unit", "x_scale", "y_label", "y_unit", "y_scale", "series"],
+      "properties": {
+        "type": {
+          "const": "line"
+        },
+        "x_label": {
+          "$ref": "#/$defs/label"
+        },
+        "x_unit": {
+          "$ref": "#/$defs/unit"
+        },
+        "x_scale": {
+          "enum": ["time"]
+        },
+        "y_label": {
+          "$ref": "#/$defs/label"
+        },
+        "y_unit": {
+          "$ref": "#/$defs/unit"
+        },
+        "y_scale": {
+          "enum": ["linear", "log"]
+        },
+        "series": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/time_series"
+          }
+        }
+      }
+    }
+  }
+}

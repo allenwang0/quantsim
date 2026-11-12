@@ -19,4 +19,6 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy
-      - run: pytest -m "not live" -q
+      - run: pytest -m "not live and not browser" -q
+      - run: python -m playwright install --with-deps chromium
+      - run: pytest -m browser -q
