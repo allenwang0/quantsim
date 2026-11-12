@@ -48,3 +48,8 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+
+# Generated fixture and report outputs
+tests/fixtures/synthetic_prices.*
+site/*
+!site/card.json

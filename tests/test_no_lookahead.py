@@ -77,12 +77,22 @@ def run_engine(db_path, strategy_cls, dates, **kwargs):
     return engine, fills
 
 
-def test_signal_on_bar_2_fills_at_bar_3_open(tmp_path):
+# How a daily bar's date is stored depends on the data source and on the
+# machine's time zone: exchange close, UTC midnight, or local midnight.
+BAR_STAMPS = {
+    "exchange_close_utc": lambda d: d,
+    "utc_midnight": lambda d: d.normalize(),
+    "new_york_midnight": lambda d: d.normalize().tz_localize(None).tz_localize("America/New_York"),
+}
+
+
+@pytest.mark.parametrize("stamp", BAR_STAMPS.values(), ids=BAR_STAMPS.keys())
+def test_signal_on_bar_2_fills_at_bar_3_open(tmp_path, stamp):
     dates = trading_days(5)
     closes = [100.0, 100.0, 110.0, 111.0, 112.0]
     opens = [100.0, 100.0, 110.0, 110.5, 111.5]
     db_path = str(tmp_path / "five.db")
-    write_bars(db_path, "SYN", dates, opens, closes)
+    write_bars(db_path, "SYN", [stamp(d) for d in dates], opens, closes)
 
     _, fills = run_engine(db_path, BuyOnBar, dates, signal_bar=1)
 

@@ -40,3 +40,10 @@ Fixes in this section change reported backtest results.
 - Vectorized engine: no trade happens on a forward-filled (stale) price;
   the position is taken on the asset's next real bar. `calendar="NYSE"`
   aligns rows to exchange sessions.
+- Event engine timing no longer depends on how bars are timestamped.
+  Bars are keyed by session date, strategies see bars through the current
+  session, and orders fill on the next session's bar. Before, bars stamped
+  at UTC midnight (yfinance data on a machine in UTC, for example) filled
+  two sessions late and let `get_current_bar` return the next session's
+  bar; data downloaded with the machine in New York time filled one
+  session late.

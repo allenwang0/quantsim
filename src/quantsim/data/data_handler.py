@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -20,6 +20,18 @@ from quantsim.core.event_queue import EventQueue
 from quantsim.core.events import BarEvent
 
 logger = logging.getLogger(__name__)
+
+
+def session_dates(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
+    """
+    Map daily bar timestamps to their session date (UTC midnight).
+
+    Sources stamp a daily bar at the exchange close, at UTC midnight or at
+    US midnight; all of these fall on the session's UTC calendar date.
+    """
+    if index.tz is None:
+        index = index.tz_localize("UTC")
+    return index.tz_convert("UTC").normalize()
 
 
 class DataHandler(ABC):
@@ -95,10 +107,21 @@ class HistoricalDataHandler(DataHandler):
         # This is safe since we're working with daily bars (not tick data)
         logger.info(f"Loading historical bars for {len(asset_ids)} assets...")
         self._bar_cache: Dict[str, pd.DataFrame] = {}
+        first_session = session_dates(pd.DatetimeIndex([start]))[0]
+        last_session = session_dates(pd.DatetimeIndex([end]))[0]
         for asset_id in asset_ids:
-            df = get_bars(asset_id, start, end, adjusted=True, db_path=self._db_path)
+            df = get_bars(
+                asset_id,
+                start - timedelta(days=1),
+                end + timedelta(days=1),
+                adjusted=True,
+                db_path=self._db_path,
+            )
             if not df.empty:
-                self._bar_cache[asset_id] = df
+                df.index = session_dates(df.index)
+                df = df[~df.index.duplicated(keep="last")]
+                in_range = (df.index >= first_session) & (df.index <= last_session)
+                self._bar_cache[asset_id] = df[in_range]
             else:
                 logger.warning(f"No data for {asset_id} in range {start}-{end}")
 
@@ -107,8 +130,9 @@ class HistoricalDataHandler(DataHandler):
             start.strftime("%Y-%m-%d"),
             end.strftime("%Y-%m-%d"),
         )
-        self._trading_days = pd.DatetimeIndex(trading_days).normalize()
+        self._trading_days = session_dates(pd.DatetimeIndex(trading_days))
         self._current_index = 0
+        self._session: Optional[pd.Timestamp] = None
 
         logger.info(
             f"DataHandler ready: {len(self._bar_cache)} assets, "
@@ -117,9 +141,10 @@ class HistoricalDataHandler(DataHandler):
 
     @property
     def current_datetime(self) -> datetime:
-        if self._current_index < len(self._trading_days):
-            return self._trading_days[self._current_index].to_pydatetime()
-        return self._end
+        """The session whose bars were fired last (the start date before the first bar)."""
+        if self._session is None:
+            return self._start
+        return self._session.to_pydatetime()
 
     @property
     def universe(self) -> List[str]:
@@ -136,22 +161,15 @@ class HistoricalDataHandler(DataHandler):
         if not self.has_more_data():
             return False
 
-        current_ts = self._trading_days[self._current_index]
+        session = self._trading_days[self._current_index]
+        self._session = session
 
-        bars_fired = 0
         for asset_id, df in self._bar_cache.items():
-            # Find the bar closest to current_ts
-            if current_ts not in df.index:
-                # Try normalized comparison
-                matching = df.index[df.index.normalize() == current_ts.normalize()]
-                if len(matching) == 0:
-                    continue
-                row = df.loc[matching[0]]
-            else:
-                row = df.loc[current_ts]
-
+            if session not in df.index:
+                continue
+            row = df.loc[session]
             event = BarEvent(
-                timestamp=current_ts.to_pydatetime(),
+                timestamp=session.to_pydatetime(),
                 asset_id=asset_id,
                 open=float(row.get("open", row.get("adj_open", 0))),
                 high=float(row.get("high", row.get("adj_high", 0))),
@@ -161,7 +179,6 @@ class HistoricalDataHandler(DataHandler):
                 adj_close=float(row.get("adj_close", row.get("close", 0))),
             )
             self._event_queue.put(event)
-            bars_fired += 1
 
         self._current_index += 1
         return True
@@ -173,45 +190,25 @@ class HistoricalDataHandler(DataHandler):
         adjusted: bool = True,
     ) -> pd.DataFrame:
         """
-        Returns N bars strictly before current_datetime.
-        NEVER includes the current bar. This is the look-ahead bias prevention.
+        Returns the N most recent bars up to and including the current session.
+
+        A daily bar is processed after its close, so its own close is known;
+        orders created from it fill on the next session's bar.
         """
-        if asset_id not in self._bar_cache:
+        if asset_id not in self._bar_cache or self._session is None:
             return pd.DataFrame()
-
         df = self._bar_cache[asset_id]
-        current_ts = self.current_datetime
-
-        # Strictly before current timestamp
-        ts_aware = (
-            pd.Timestamp(current_ts).tz_localize("UTC")
-            if getattr(current_ts, "tzinfo", None) is None
-            else pd.Timestamp(current_ts).tz_convert("UTC")
-        )
-        prior = df[df.index < ts_aware]
-        if len(prior) == 0:
+        known = df[df.index <= self._session]
+        if known.empty:
             return pd.DataFrame()
-
-        return prior.iloc[-n:].copy()
+        return known.iloc[-n:].copy()
 
     def get_current_bar(self, asset_id: str) -> Optional[pd.Series]:
-        """Returns the current bar (for execution price calculation)."""
-        if asset_id not in self._bar_cache:
+        """Returns the asset's bar for the current session, or its last earlier bar."""
+        bars = self.get_latest_bars(asset_id, n=1)
+        if bars.empty:
             return None
-
-        df = self._bar_cache[asset_id]
-        current_ts = self.current_datetime
-
-        # Current bar: at or immediately before current timestamp
-        ts_aware2 = (
-            pd.Timestamp(current_ts).tz_localize("UTC")
-            if getattr(current_ts, "tzinfo", None) is None
-            else pd.Timestamp(current_ts).tz_convert("UTC")
-        )
-        at_or_before = df[df.index <= ts_aware2]
-        if at_or_before.empty:
-            return None
-        return at_or_before.iloc[-1]
+        return bars.iloc[-1]
 
     def get_macro_value(self, series_id: str) -> Optional[float]:
         current_date = self.current_datetime.date()
