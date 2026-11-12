@@ -16,4 +16,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install ".[optimization,trading,fast,dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy
       - run: pytest -m "not live" -q

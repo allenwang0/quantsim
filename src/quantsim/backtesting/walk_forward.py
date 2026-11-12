@@ -74,7 +74,7 @@ class WalkForwardOptimizer:
         Generate all train/test window pairs.
         Each window is a dict with 'train_start', 'train_end', 'test_start', 'test_end'.
         """
-        windows = []
+        windows: List[Dict] = []
         n = len(self.prices)
         start = 0
 
@@ -229,11 +229,11 @@ class WalkForwardOptimizer:
 
         # Find most stable parameter set (appears most often as best)
         if len(results_df) > 0:
-            param_stability = {}
+            param_stability: Dict[str, int] = {}
             for _, row in results_df.iterrows():
                 key = str(row["best_params"])
                 param_stability[key] = param_stability.get(key, 0) + 1
-            most_stable_params = max(param_stability, key=param_stability.get)
+            most_stable_params = max(param_stability, key=lambda k: param_stability[k])
         else:
             most_stable_params = str(dict(zip(keys, combinations[0])))
 

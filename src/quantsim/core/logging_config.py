@@ -25,6 +25,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 
 class JSONFormatter(logging.Formatter):
@@ -123,9 +124,9 @@ class ColoredFormatter(logging.Formatter):
 
 
 def setup_logging(
-    level: str = None,
-    log_file: str = None,
-    json_mode: bool = None,
+    level: Optional[str] = None,
+    log_file: Optional[str] = None,
+    json_mode: Optional[bool] = None,
 ) -> None:
     """
     Configure logging for the entire quantsim application.

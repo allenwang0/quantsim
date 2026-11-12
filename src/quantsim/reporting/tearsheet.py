@@ -122,7 +122,7 @@ def generate_tearsheet(
         bench_values = [round(float(v * scale), 2) for v in bench_aligned.values]
 
     # Monthly returns for heatmap
-    monthly_ret_dict = {}
+    monthly_ret_dict: Dict[str, Dict[str, float]] = {}
     monthly_eq = equity_curve.resample("ME").last()
     monthly_ret = monthly_eq.pct_change(fill_method=None).dropna() * 100
     if not monthly_ret.empty:

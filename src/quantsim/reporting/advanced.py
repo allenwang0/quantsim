@@ -276,7 +276,7 @@ class AdvancedAnalytics:
         alpha_contribution = float(alpha_annual)
         total_return = float(strat_ret.mean() * 252)
 
-        attribution = {
+        attribution: Dict[str, object] = {
             "total_annual_return": total_return,
             "market_contribution": market_contribution,
             "alpha_contribution": alpha_contribution,

@@ -263,7 +263,7 @@ class OrderManager:
         Returns list of triggered asset_ids.
         """
         asset_id = event.asset_id
-        triggered = []
+        triggered: List[str] = []
 
         if asset_id not in self._stops:
             return triggered

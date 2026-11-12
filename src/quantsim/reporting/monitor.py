@@ -125,7 +125,7 @@ class StrategyHealthMonitor:
         return alerts
 
     def _check_concentration(self, portfolio, timestamp: datetime) -> List[Dict]:
-        alerts = []
+        alerts: List[Dict] = []
         equity = portfolio.total_equity
         if equity <= 0:
             return alerts

@@ -29,7 +29,7 @@ class SlippageModel(ABC):
         self,
         price: float,
         quantity: int,
-        bar_volume: int,
+        bar_volume: float,
         adv_20: float,
         asset_type: AssetType,
     ) -> float:
@@ -173,17 +173,22 @@ class FillModel:
         if not current_bar and self.mode == self.IMMEDIATE_CLOSE:
             return None
 
+        bar: Dict
         if self.mode == self.IMMEDIATE_CLOSE:
+            assert current_bar is not None
             bar = current_bar
             price = bar.get("adj_close", bar.get("close", 0))
         elif self.mode == self.NEXT_BAR_OPEN:
+            assert next_bar is not None
             bar = next_bar
             price = bar.get("open", bar.get("adj_open", 0))
         elif self.mode == self.VWAP:
+            assert next_bar is not None
             bar = next_bar
             o, h, lo, c = (bar.get(k, 0) for k in ("open", "high", "low", "close"))
             price = (o + h + lo + c) / 4
         else:
+            assert next_bar is not None
             bar = next_bar
             price = bar.get("open", 0)
 
@@ -230,9 +235,9 @@ class BacktestExecutionHandler(ExecutionHandler):
         self,
         data_handler,  # HistoricalDataHandler
         event_queue: EventQueue,
-        slippage_model: SlippageModel = None,
-        commission_model: CommissionModel = None,
-        fill_model: FillModel = None,
+        slippage_model: Optional[SlippageModel] = None,
+        commission_model: Optional[CommissionModel] = None,
+        fill_model: Optional[FillModel] = None,
     ):
         self._data = data_handler
         self._queue = event_queue

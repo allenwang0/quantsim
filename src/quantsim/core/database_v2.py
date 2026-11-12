@@ -13,6 +13,7 @@ Migration: safe to run multiple times (IF NOT EXISTS everywhere).
 """
 
 import logging
+from typing import Optional
 
 import pandas as pd
 
@@ -183,7 +184,7 @@ def log_ml_run(
     train_ic: float,
     val_ic: float,
     model_params: dict,
-    feature_importances: dict = None,
+    feature_importances: Optional[dict] = None,
 ) -> None:
     import json
     import time

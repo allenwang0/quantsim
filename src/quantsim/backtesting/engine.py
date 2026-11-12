@@ -152,7 +152,7 @@ class BacktestEngine:
 
         # Ensemble support: if use_ensemble=True, wrap strategies
         if use_ensemble and len(strategies) > 1:
-            self.ensemble = EnsembleEngine(
+            self.ensemble: Optional[EnsembleEngine] = EnsembleEngine(
                 strategies=strategies,
                 main_queue=self.event_queue,
                 aggregation_method=ensemble_method,

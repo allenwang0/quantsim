@@ -78,3 +78,9 @@ ignore = ["E501", "B905"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/quantsim/core", "src/quantsim/backtesting", "src/quantsim/reporting"]
+ignore_missing_imports = true
+follow_imports = "silent"

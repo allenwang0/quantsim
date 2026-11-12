@@ -36,13 +36,13 @@ except ImportError:
     NUMBA_AVAILABLE = False
     logger.warning("Numba not available: vectorized engine will be slower")
 
-    def njit(*args, **kwargs):
+    def njit(*args, **kwargs):  # type: ignore[no-redef]
         def decorator(fn):
             return fn
 
         return decorator
 
-    def prange(n):
+    def prange(n):  # type: ignore[no-redef]
         return range(n)
 
 
