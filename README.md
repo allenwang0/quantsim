@@ -1,6 +1,8 @@
-# QuantSim v2
+# quantsim
 
-Production-grade paper trading and backtesting platform. Zero paid data dependencies.
+Event-driven and vectorized daily-bar backtesting with walk-forward testing and a deflated Sharpe check, plus Alpaca paper trading. No paid data dependencies.
+
+Version 3.0.0 fixes look-ahead fills, vectorized sizing churn, a two-bar signal delay and a mis-scaled deflated Sharpe ratio; every fix has a regression test that fails on the old code. See [CHANGELOG.md](CHANGELOG.md).
 
 ## What's inside
 
@@ -15,7 +17,7 @@ quantsim/
 ├── reporting/          full analytics suite, Monte Carlo CI, factor decay, attribution
 ├── paper_trading/      Alpaca integration, paper trading engine (asyncio)
 ├── dashboard/          Streamlit 3-view dashboard (separate process)
-├── tests/              86 tests (unit + integration + e2e)
+├── tests/              unit, integration and regression tests
 └── scripts/            CLI runners for all modes
 ```
 
@@ -24,21 +26,21 @@ quantsim/
 **Two backtesting engines, one strategy codebase:**
 
 ```
-[Event-Driven Engine]          [Vectorized Engine]
-  BarEvent → Strategy            NumPy price matrix
-  → SignalEvent → Order          → signal function
-  → FillEvent → Portfolio        → Numba JIT simulation
-  
-  ~2s/year-of-data              ~1ms/year-of-data
-  Realistic fills/slippage      Best for parameter sweeps
-  Live paper trading parity     100-1000x faster
+[Event-driven engine]                [Vectorized engine]
+  bar T: BarEvent -> Strategy          signal function -> position wanted
+         -> SignalEvent -> Order          at bar T's close (data through T)
+  bar T+1: Order fills at T+1 open     Numba simulation trades it at
+         -> FillEvent -> Portfolio        bar T+1's price
+  slippage and commission models       for parameter sweeps and walk-forward
 ```
 
-Both engines use identical strategy code. Signal functions are pure NumPy for the vectorized engine; the same logic wraps into strategy classes for the event-driven engine.
+The event engine runs `Strategy` classes; the vectorized engine runs pandas signal functions. They are separate implementations of the same rules. `tests/test_engine_parity.py` runs an SMA crossover through both on one synthetic series and checks that round-trip counts match and total returns agree within 0.5 percentage points.
+
+Fill timing: an order created on bar T fills at bar T+1's open. `fill_mode=FillModel.IMMEDIATE_CLOSE` fills at bar T's close instead, as an explicit opt-in.
 
 ## Quick Start
 
-### Phase 0: Walking skeleton validation (always first)
+### Verify your install
 ```bash
 pip install -r requirements.txt
 python scripts/bootstrap_data.py --symbols SPY --start 2020-01-01
@@ -84,32 +86,34 @@ python scripts/run_wfo.py --mode sweep --signal momentum --symbol SPY QQQ GLD TL
 export ALPACA_API_KEY=your_key
 export ALPACA_SECRET_KEY=your_secret
 python scripts/run_paper_trading.py --strategy sma --symbol SPY QQQ
-# Without Alpaca credentials: simulates fills locally (still useful for testing)
+# Without Alpaca credentials: simulates fills locally
+```
+
+Orders go to the Alpaca paper account unless you set both `ALPACA_PAPER=false` and `QUANTSIM_ALLOW_LIVE=1`. Any `ALPACA_PAPER` value other than `true` or `false` raises an error instead of trading.
 ```
 
 ### Dashboard (separate terminal)
 ```bash
 streamlit run dashboard/app.py
 # Opens at http://localhost:8501
-# Reads from DB every 2s. Never blocks trading loop.
+# Reads from the database every 2s, in its own process
 ```
 
 ### Run all tests
 ```bash
-pytest tests/ -v                    # 86 tests
-pytest tests/ -m "not live" -v     # skip tests requiring live data
+pytest tests/ -m "not live" -q     # offline test suite
 ```
 
 ## Strategy Library
 
 | Name | Type | Description | Validated Range |
 |------|------|-------------|-----------------|
-| `buy_and_hold` | passive | Walking skeleton baseline | — |
+| `buy_and_hold` | passive | Walking skeleton baseline | |
 | `sma` | trend | SMA crossover (50/200) | Sharpe 0.4–0.7 on SPY |
-| `ema` | trend | EMA crossover (12/26) | — |
-| `macd` | trend | MACD signal line | — |
+| `ema` | trend | EMA crossover (12/26) | |
+| `macd` | trend | MACD signal line | |
 | `donchian` | trend | Donchian breakout (Turtle) | Use on diversified basket |
-| `adx` | trend | ADX-filtered trend | — |
+| `adx` | trend | ADX-filtered trend | |
 | `tsmom` | trend | Time-series momentum 12-1 | Moskowitz et al. 2012 |
 | `bollinger` | mean-rev | Bollinger Band z-score | ADX < 20 filter required |
 | `rsi` | mean-rev | RSI oversold/overbought | SMA 200 trend filter |
@@ -126,7 +130,7 @@ All plug into the backtesting engine as position sizing overlays:
 
 | Optimizer | When to use |
 |-----------|-------------|
-| `hrp` | Default. No matrix inversion. Robust OOS. |
+| `hrp` | Default. No matrix inversion. |
 | `risk_parity` | Equal risk contribution. No expected return needed. |
 | `mean_variance` | When you have high-confidence return estimates. Fragile. |
 | `black_litterman` | Incorporating specific market views into equilibrium. |
@@ -139,15 +143,14 @@ All plug into the backtesting engine as position sizing overlays:
 | yfinance | OHLCV, dividends, splits, current options chains | Unlimited (unofficial) |
 | FRED | VIX, yields, HY spreads, CPI, fed funds | 120 req/min (set FRED_API_KEY) |
 | Alpaca | Historical bars 2002+, paper trading, WebSocket | Free paper account |
-| Stooq | Bulk historical CSV | No limit |
 
 ## Performance Analytics Output
 
-Every backtest produces the full suite:
+`PerformanceAnalytics.compute_all` and `generate_full_report` compute:
 - Total return, CAGR, monthly distribution
 - Sharpe, Sortino, Calmar, max drawdown, drawdown duration
-- **Deflated Sharpe Ratio** (corrects for number of parameter configurations tested)
-- **Monte Carlo 95% CI** on Sharpe (bootstrap)
+- Deflated Sharpe ratio, a probability that corrects for the number of configurations tested
+- Stationary-bootstrap 95% interval on Sharpe, seeded
 - Win rate, profit factor, expectancy, average holding period
 - Alpha, beta, information ratio vs SPY benchmark
 - Rolling 12-month Sharpe (regime drift detection)
@@ -166,7 +169,7 @@ The correct protocol per Bailey, Borwein, Lopez de Prado, Zhu (2014):
 Reported Sharpe = average of TEST periods only (never train)
 ```
 
-The **Deflated Sharpe Ratio** (DSR) adjusts for however many parameter combinations you tested. DSR > 0 is required before proceeding. A raw Sharpe of 1.2 after testing 100 configurations may have DSR < 0.
+The deflated Sharpe ratio (DSR, Bailey and Lopez de Prado 2014) is the probability that the true Sharpe beats the best Sharpe you would expect from that many unskilled configurations. quantsim treats DSR > 0.95 as significant.
 
 ## Known Constraints
 
@@ -186,10 +189,15 @@ QUANTSIM_CAPITAL=100000           # initial capital
 QUANTSIM_SLIPPAGE=volume          # slippage model: none/fixed/volume
 ALPACA_API_KEY=your_key           # paper trading (required for live mode)
 ALPACA_SECRET_KEY=your_secret     # paper trading (required for live mode)
-ALPACA_PAPER=true                 # use paper account (default: true)
+ALPACA_PAPER=true                 # paper account (default); false also needs QUANTSIM_ALLOW_LIVE=1
 FRED_API_KEY=your_key             # optional: improves FRED rate limits
 QUANTSIM_ML=true                  # enable ML alpha features (requires lightgbm)
 ```
+
+## Related
+
+- [statarb](https://github.com/allenwang0/statarb): standalone Kalman-filter pairs trading. quantsim's `PairsTradingStrategy` passes the same Kalman test cases.
+- [volatilityscanner](https://github.com/allenwang0/volatilityscanner): option pricing and implied volatility.
 
 ## References
 
@@ -203,3 +211,7 @@ QUANTSIM_ML=true                  # enable ML alpha features (requires lightgbm)
 - Bailey, Borwein, Lopez de Prado, Zhu (2014): "Pseudo-Mathematics and Financial Charlatanism" (DSR)
 - Vidyamurthy (2004): "Pairs Trading: Quantitative Methods and Analysis"
 - Black & Litterman (1992): "Global Portfolio Optimization"
+
+## License
+
+MIT. See [LICENSE](LICENSE).

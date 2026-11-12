@@ -1,5 +1,5 @@
 """
-QuantSim - Production-grade quantitative trading simulator.
+QuantSim: event-driven and vectorized daily-bar backtesting.
 Zero paid dependencies. Event-driven + vectorized engines.
 
 Quick start:
