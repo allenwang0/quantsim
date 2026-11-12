@@ -216,7 +216,6 @@ class PerformanceAnalytics:
         max_dd = float(drawdown.min())
 
         # Compute individual drawdown periods for avg
-        in_dd = drawdown < -1e-6
         drawdown_magnitudes = []
         max_duration = 0
         current_start = None

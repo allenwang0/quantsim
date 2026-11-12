@@ -37,7 +37,6 @@ try:
     from py_vollib.black_scholes.greeks.analytical import (
         vega as bsm_vega,
     )
-    from py_vollib.black_scholes.implied_volatility import implied_volatility
 
     PY_VOLLIB_AVAILABLE = True
 except ImportError:
@@ -181,7 +180,7 @@ def reconstruct_chain(
     prices_df: pd.DataFrame,
     risk_free_rate: float = 0.05,
     iv_series: Optional[pd.Series] = None,
-    expirations_dte: List[int] = [21, 30, 45, 60, 90],
+    expirations_dte: Tuple[int, ...] = (21, 30, 45, 60, 90),
     strike_range_pct: float = 0.20,
     n_strikes_each_side: int = 10,
 ) -> List[Dict]:
@@ -227,7 +226,6 @@ def reconstruct_chain(
         T = dte / 365.0
 
         # Generate strikes around current price
-        strike_step = S * strike_range_pct / n_strikes_each_side
         strikes = [
             round(S * (1 + (i - n_strikes_each_side) * strike_range_pct / n_strikes_each_side), 2)
             for i in range(2 * n_strikes_each_side + 1)

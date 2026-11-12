@@ -181,8 +181,8 @@ class FillModel:
             price = bar.get("open", bar.get("adj_open", 0))
         elif self.mode == self.VWAP:
             bar = next_bar
-            o, h, l, c = (bar.get(k, 0) for k in ("open", "high", "low", "close"))
-            price = (o + h + l + c) / 4
+            o, h, lo, c = (bar.get(k, 0) for k in ("open", "high", "low", "close"))
+            price = (o + h + lo + c) / 4
         else:
             bar = next_bar
             price = bar.get("open", 0)

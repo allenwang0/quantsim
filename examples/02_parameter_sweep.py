@@ -13,7 +13,6 @@ Run:
     cd examples && python 02_parameter_sweep.py
 """
 
-
 import time
 
 import numpy as np

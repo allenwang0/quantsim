@@ -341,7 +341,7 @@ class TestDashboardDBQueries:
         def _q(sql, params=()):
             try:
                 return [dict(r) for r in conn.execute(sql, params).fetchall()]
-            except:
+            except sqlite3.Error:
                 return []
 
         # All these should return empty lists without error

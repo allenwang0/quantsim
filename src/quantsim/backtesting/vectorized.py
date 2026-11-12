@@ -243,7 +243,7 @@ class VectorizedBacktester:
         logger.info(f"Parameter sweep: {n_configs} configurations")
 
         rows = []
-        for i, combo in enumerate(combinations):
+        for combo in combinations:
             kwargs = dict(zip(keys, combo))
             try:
                 result = self.run(signal_fn, signal_kwargs=kwargs, benchmark=benchmark)

@@ -207,8 +207,6 @@ class MeanVarianceOptimizer:
         """Generate the efficient frontier curve."""
         mu = returns.mean().values * 252
         cov = compute_covariance(returns, self.cov_method) * 252
-        n = len(returns.columns)
-
         min_ret = mu.min()
         max_ret = mu.max()
         target_returns = np.linspace(min_ret, max_ret, n_points)
@@ -379,7 +377,6 @@ class RiskParityOptimizer:
         cov = compute_covariance(returns, self.cov_method)
 
         def risk_contribution(w):
-            port_var = w @ cov @ w
             mrc = cov @ w  # marginal risk contribution
             rc = w * mrc  # risk contribution
             return rc

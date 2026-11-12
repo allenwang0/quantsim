@@ -14,7 +14,7 @@ What institutional quant research adds beyond basic Sharpe/drawdown:
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -89,7 +89,7 @@ class AdvancedAnalytics:
     def factor_decay_analysis(
         signal: pd.DataFrame,
         forward_returns: pd.DataFrame,
-        horizons: List[int] = [1, 5, 10, 21, 42, 63],
+        horizons: Tuple[int, ...] = (1, 5, 10, 21, 42, 63),
     ) -> pd.DataFrame:
         """
         Compute IC (Information Coefficient) at each forward horizon.

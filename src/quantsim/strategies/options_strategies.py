@@ -272,8 +272,6 @@ class IronCondorStrategy(OptionsStrategyBase):
             if ivr < self.min_ivr:
                 return
 
-            current_close = float(event.close)
-
             # Find short strikes at 0.16-delta
             short_call = find_option_by_delta(chain, self.short_delta, "C")
             short_put = find_option_by_delta(chain, -self.short_delta, "P")
@@ -439,7 +437,6 @@ class LongStraddleStrategy(OptionsStrategyBase):
 
         if self._active_straddle is None and is_high_vol:
             # Find ATM call and put
-            current_close = float(event.close)
             atm_call = find_option_by_delta(chain, 0.50, "C")
             atm_put = find_option_by_delta(chain, -0.50, "P")
 

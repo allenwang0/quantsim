@@ -260,7 +260,6 @@ class TestPortfolioOptionsMethods:
 
         # Update price to 0 (expires worthless)
         p.positions["SPY220107P00390000"].current_price = 0.0
-        realized_before = p.realized_pnl
 
         expired = p.expire_options(as_of_date=date(2022, 1, 8))
         assert len(expired) > 0
@@ -334,7 +333,7 @@ class TestStrategyHealthMonitor:
         p.peak_equity = 100_000
 
         ts = datetime(2022, 1, 1)
-        alerts1 = monitor.check_all(p, ts)
+        monitor.check_all(p, ts)
         # Same timestamp day: should be deduplicated
         alerts2 = monitor.check_all(p, ts + timedelta(minutes=5))
         # Second call in same cooldown window should produce 0 additional alerts

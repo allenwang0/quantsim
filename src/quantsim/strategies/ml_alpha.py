@@ -104,7 +104,6 @@ def compute_alpha_features(
 
     # ── Volume factors (if available) ────────────────────────────────────────
     if volumes is not None:
-        vol_roll_5 = volumes.rolling(5).mean()
         vol_roll_20 = volumes.rolling(20).mean()
         features["vol_ratio"] = volumes / (vol_roll_20 + 1)
         features["amihud_illiq"] = (log_ret.abs() / (volumes * close + 1)).rolling(20).mean()
@@ -379,7 +378,7 @@ class MLAlphaStrategy:
         sorted_assets = rankings.sort_values(ascending=False)
         signals = {}
 
-        for i, (asset, rank) in enumerate(sorted_assets.items()):
+        for i, asset in enumerate(sorted_assets.index):
             if i < self.top_n:
                 signals[asset] = 1  # LONG
             elif i >= len(sorted_assets) - self.bottom_n:

@@ -300,10 +300,7 @@ def _register_all_strategies():
 def _register_ml_strategies():
     """Register ML strategies (optional - only if lightgbm available)."""
     try:
-        from quantsim.strategies.ml_strategy import (
-            MLCrossSectionalStrategy,
-            TurbulenceFilteredStrategy,
-        )
+        from quantsim.strategies.ml_strategy import MLCrossSectionalStrategy
 
         class _MLWrapper:
             def __new__(cls, asset_ids, event_queue, **kwargs):

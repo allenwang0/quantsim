@@ -14,6 +14,8 @@ Migration: safe to run multiple times (IF NOT EXISTS everywhere).
 
 import logging
 
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 V2_SCHEMA = """
@@ -305,6 +307,3 @@ def log_wfo_result(
             )
     except Exception as e:
         logger.error(f"log_wfo_result failed: {e}")
-
-
-import pandas as pd

@@ -116,8 +116,8 @@ def load_snapshot():
     if rows:
         try:
             return json.loads(rows[0]["payload"])
-        except:
-            pass
+        except (json.JSONDecodeError, TypeError) as e:
+            st.error(f"Latest portfolio snapshot is not valid JSON: {e}")
     return {}
 
 
@@ -278,8 +278,8 @@ def chart_monthly_heatmap(eq_df):
     ]
     mx = max(abs(pivot.values[~np.isnan(pivot.values)]).max(), 0.01) if pivot.size else 5
     ann = []
-    for i, yr in enumerate(pivot.index):
-        for j, mo in enumerate(pivot.columns):
+    for i in range(len(pivot.index)):
+        for j in range(len(pivot.columns)):
             v = pivot.iloc[i, j]
             if not np.isnan(v):
                 ann.append(
@@ -506,8 +506,6 @@ def main():
         if snapshot:
             equity = snapshot.get("total_equity", 0)
             dd = snapshot.get("current_drawdown", 0)
-            rpnl = snapshot.get("realized_pnl", 0)
-            upnl = snapshot.get("unrealized_pnl", 0)
 
             today_pnl = 0
             if not eq_df.empty and len(eq_df) >= 2:

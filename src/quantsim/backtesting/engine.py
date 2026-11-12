@@ -15,6 +15,8 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional
 
+import pandas as pd
+
 from quantsim.backtesting.execution import (
     BacktestExecutionHandler,
     FillModel,
@@ -374,7 +376,3 @@ class BacktestEngine:
             self.analytics.print_summary(results)
 
         return results
-
-
-# Need pandas for equity curve fallback
-import pandas as pd

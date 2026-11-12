@@ -97,7 +97,6 @@ class PortfolioManager:
         if not self.risk.check_signal(signal, self.portfolio):
             return None
 
-        asset_id = signal.asset_id
         direction = signal.direction
 
         # Closing signal: close existing position
@@ -258,11 +257,9 @@ class PortfolioManager:
     def _log_strategy_performance(self, fill) -> None:
         """Log per-strategy daily P&L to strategy_performance table."""
         try:
-
             from quantsim.core.database import db_conn
 
             ts_epoch = int(fill.timestamp.timestamp())
-            equity = self.portfolio.total_equity
             rpnl = self.portfolio.realized_pnl
             upnl = self.portfolio.unrealized_pnl
             n_pos = len(self.portfolio.positions)
@@ -307,7 +304,6 @@ class PortfolioManager:
     def _record_trade(self, fill: FillEvent) -> None:
         """Record fill to trade log. Matches opens to closes."""
         try:
-
             from quantsim.core.database import db_conn
 
             ts_epoch = int(fill.timestamp.timestamp())

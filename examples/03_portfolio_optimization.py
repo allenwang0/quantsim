@@ -15,7 +15,6 @@ Run:
     cd examples && python 03_portfolio_optimization.py
 """
 
-
 import numpy as np
 import pandas as pd
 

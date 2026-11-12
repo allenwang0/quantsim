@@ -48,7 +48,7 @@ daily_returns = np.random.normal(0.0005, 0.012, n_bars)  # 12.6% annual return
 prices = 300 * np.cumprod(1 + daily_returns)  # start at $300
 
 with db_conn(DB_PATH) as conn:
-    for i, (date, price) in enumerate(zip(dates, prices)):
+    for date, price in zip(dates, prices):
         ts_epoch = int(date.timestamp())
         conn.execute(
             "INSERT OR REPLACE INTO raw_bars "

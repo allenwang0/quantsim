@@ -279,7 +279,7 @@ class Portfolio:
 
     def update_market_prices(self, prices: Dict[str, float], timestamp=None) -> None:
         """Update current_price for all positions. Called on each BarEvent."""
-        for asset_key, pos in self.positions.items():
+        for pos in self.positions.values():
             lookup_key = pos.asset_id
             if lookup_key in prices:
                 pos.current_price = prices[lookup_key]

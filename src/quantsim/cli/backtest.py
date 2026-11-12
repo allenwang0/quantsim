@@ -70,12 +70,6 @@ def main(argv=None):
     parser.add_argument("--slippage", default="volume", choices=["none", "fixed", "volume"])
     parser.add_argument("--commission", default="zero", choices=["zero", "per_share"])
     parser.add_argument(
-        "--optimizer",
-        default=None,
-        choices=["hrp", "risk_parity", "mean_variance", "black_litterman"],
-        help="Portfolio optimization overlay",
-    )
-    parser.add_argument(
         "--ensemble",
         action="store_true",
         help="Use signal ensemble aggregation for multiple strategies",
@@ -227,13 +221,6 @@ def main(argv=None):
             logger.error(str(e))
             sys.exit(1)
 
-    sizer = None
-    if args.optimizer:
-        from quantsim.portfolio.optimization import PortfolioOptimizationStrategy
-
-        opt_strat = PortfolioOptimizationStrategy(optimizer_name=args.optimizer)
-        logger.info(f"Portfolio optimizer: {args.optimizer}")
-
     engine = BacktestEngine(
         strategies=strategies,
         start=start_dt,
@@ -277,7 +264,6 @@ def main(argv=None):
 
 
 def _print_results(results):
-    meta = results.get("_meta", {})
     logger.info("\n" + "=" * 50)
     logger.info("BACKTEST RESULTS")
     logger.info("=" * 50)

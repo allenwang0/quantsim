@@ -6,7 +6,6 @@ that bar's open: a price that was already in the past when the signal was
 known. These tests use synthetic bars only.
 """
 
-
 import numpy as np
 import pytest
 

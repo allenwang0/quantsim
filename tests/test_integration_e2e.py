@@ -40,7 +40,6 @@ def make_ohlcv(n=600, n_assets=4, seed=42):
         vol = [0.012, 0.015, 0.010, 0.008][i]
         log_rets = np.random.normal(drift, vol, n)
         close = 100 * np.cumprod(1 + log_rets)
-        noise = np.random.uniform(0.995, 1.005, n)
         result[sym] = pd.DataFrame(
             {
                 "open": close * np.random.uniform(0.997, 1.003, n),
@@ -340,7 +339,7 @@ class TestSignalAggregationE2E:
         )
 
         # Manually inject a signal from each strategy into ensemble's internal queue
-        for i, strat in enumerate([s1, s2]):
+        for i in range(2):
             sig = SignalEvent(
                 timestamp=datetime(2022, 6, 1),
                 strategy_id=f"test_strat_{i}",
