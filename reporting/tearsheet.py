@@ -97,7 +97,9 @@ def generate_tearsheet(
     daily_returns = equity_curve.pct_change().dropna()
     mc_results = {}
     if len(daily_returns) >= 30:
-        mc_results = advanced.monte_carlo_sharpe(daily_returns, n_simulations=2000)
+        mc_results = advanced.monte_carlo_sharpe(
+            daily_returns, n_simulations=2000, risk_free_rate=analytics.risk_free_rate
+        )
 
     # Prepare chart data
     eq_dates = [str(d) for d in equity_curve.index]

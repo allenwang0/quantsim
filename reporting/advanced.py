@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class AdvancedAnalytics:
     """
-    Institutional-grade analytics beyond basic performance metrics.
+    Analytics beyond basic performance metrics.
     """
 
     @staticmethod
@@ -32,42 +32,36 @@ class AdvancedAnalytics:
         daily_returns: pd.Series,
         n_simulations: int = 10_000,
         confidence_level: float = 0.95,
+        risk_free_rate: float = 0.05,
+        seed=None,
     ) -> Dict:
         """
-        Bootstrap confidence interval for Sharpe ratio.
-        
-        The standard error of Sharpe is large for short samples.
-        A strategy with Sharpe 0.8 and 252 bars has a 95% CI of roughly (0.3, 1.3).
-        This is why minimum sample size matters so much.
-        
-        Uses stationary bootstrap (Politis & Romano 1994) which
-        preserves autocorrelation structure of returns.
+        Bootstrap confidence interval for the annualized Sharpe ratio.
+
+        Uses the stationary bootstrap (Politis and Romano 1994): blocks of
+        geometric length with mean sqrt(n), wrapping circularly at the end of
+        the series, which keeps short-range autocorrelation. seed is an int or
+        a numpy Generator; the same seed gives the same interval.
         """
         n = len(daily_returns)
         if n < 30:
             return {"error": "Insufficient sample size (<30 obs)"}
 
-        returns_arr = daily_returns.values
-        rf_daily = 0.05 / 252
+        rng = np.random.default_rng(seed)
+        returns_arr = daily_returns.to_numpy(dtype=float)
+        rf_daily = risk_free_rate / 252
+        block_size = max(1, int(np.sqrt(n)))
 
-        sharpe_samples = []
-        block_size = max(1, int(np.sqrt(n)))  # typical block size for bootstrap
+        indices = np.empty((n_simulations, n), dtype=np.int64)
+        indices[:, 0] = rng.integers(0, n, n_simulations)
+        new_block = rng.random((n_simulations, n)) < 1.0 / block_size
+        fresh_starts = rng.integers(0, n, (n_simulations, n))
+        for t in range(1, n):
+            indices[:, t] = np.where(new_block[:, t], fresh_starts[:, t], (indices[:, t - 1] + 1) % n)
 
-        for _ in range(n_simulations):
-            # Stationary bootstrap: random block lengths
-            bootstrap_sample = []
-            while len(bootstrap_sample) < n:
-                start = np.random.randint(0, n)
-                length = np.random.geometric(1.0 / block_size)
-                block = returns_arr[start:min(start + length, n)]
-                bootstrap_sample.extend(block)
+        excess = returns_arr[indices] - rf_daily
+        sharpe_samples = excess.mean(axis=1) / (excess.std(axis=1) + 1e-10) * np.sqrt(252)
 
-            sample = np.array(bootstrap_sample[:n])
-            excess = sample - rf_daily
-            sharpe = float(excess.mean() / (excess.std() + 1e-10) * np.sqrt(252))
-            sharpe_samples.append(sharpe)
-
-        sharpe_samples = np.array(sharpe_samples)
         alpha = 1 - confidence_level
         ci_low = np.percentile(sharpe_samples, alpha/2 * 100)
         ci_high = np.percentile(sharpe_samples, (1 - alpha/2) * 100)
@@ -335,7 +329,9 @@ def generate_full_report(
     # Monte Carlo confidence intervals
     daily_returns = equity_curve.pct_change().dropna()
     if len(daily_returns) >= 30:
-        report["monte_carlo"] = advanced.monte_carlo_sharpe(daily_returns)
+        report["monte_carlo"] = advanced.monte_carlo_sharpe(
+            daily_returns, risk_free_rate=analytics.risk_free_rate
+        )
 
     # Turnover analysis
     if signals is not None and prices is not None:
