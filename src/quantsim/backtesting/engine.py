@@ -321,30 +321,18 @@ class BacktestEngine:
 
     def _compute_results(self) -> Dict:
         """Build the full performance analytics report."""
-        equity_curve = load_equity_curve_from_db(self.db_path)
-
-        # Treat DB curve as insufficient if it has <= 1 data point
-        # OR if all values are identical (stale/broken snapshots)
-        if len(equity_curve) <= 1 or equity_curve.std() == 0:
-            equity_curve = pd.Series(dtype=float)
-
-        if equity_curve.empty:
-            # Build from portfolio history if DB snapshots are thin
-            if self.portfolio._equity_history:
-                timestamps, equities = zip(*self.portfolio._equity_history)
-                # Normalize all timestamps to naive UTC for consistent indexing
-                clean_ts = []
-                for t in timestamps:
-                    if hasattr(t, "tzinfo") and t.tzinfo is not None:
-                        t = t.replace(tzinfo=None)
-                    clean_ts.append(t)
-                equity_curve = pd.Series(
-                    list(equities),
-                    index=pd.DatetimeIndex(clean_ts),
-                )
-                # Deduplicate: keep last value per timestamp
-                equity_curve = equity_curve[~equity_curve.index.duplicated(keep="last")]
-                equity_curve = equity_curve.sort_index()
+        # One equity value per session from the in-memory history; the DB keeps
+        # only a snapshot every 21 bars, too sparse for daily-annualized metrics.
+        equity_curve = pd.Series(dtype=float)
+        if self.portfolio._equity_history:
+            timestamps, equities = zip(*self.portfolio._equity_history)
+            index = pd.DatetimeIndex(
+                [t.replace(tzinfo=None) if getattr(t, "tzinfo", None) else t for t in timestamps]
+            ).normalize()
+            equity_curve = pd.Series(list(equities), index=index)
+            equity_curve = equity_curve[~equity_curve.index.duplicated(keep="last")].sort_index()
+        if len(equity_curve) <= 1:
+            equity_curve = load_equity_curve_from_db(self.db_path)
 
         trades_df = load_trades_from_db(self.db_path)
 

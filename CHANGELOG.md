@@ -63,3 +63,10 @@ Fixes in this section change reported backtest results.
   `Series.all(level=0)`, which pandas 2 removed, so training failed. Alpha
   features and the turbulence filter stay.
 - `quantsim backtest --optimizer`, which built an optimizer and never used it.
+
+### Fixed (continued)
+
+- Event engine analytics use one equity value per session. Before, they
+  ran on the snapshots written every 21 bars while annualizing as if they
+  were daily: a two-year run reported 0.095 years, inflating CAGR and
+  mis-scaling Sharpe.
