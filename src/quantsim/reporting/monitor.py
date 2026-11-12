@@ -191,8 +191,8 @@ class StrategyHealthMonitor:
                     )
                     if alert:
                         return [alert]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"IC decay check failed: {e}")
         return []
 
     def _check_vol_spike(self, timestamp: datetime) -> List[Dict]:
@@ -227,8 +227,8 @@ class StrategyHealthMonitor:
                 else:
                     # Slowly update baseline (EMA with alpha=0.02)
                     self._baseline_vol[asset_id] = 0.98 * baseline + 0.02 * current_vol
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Volatility spike check failed: {e}")
         return []
 
     def _make_alert(

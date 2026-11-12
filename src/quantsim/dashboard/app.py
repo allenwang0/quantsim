@@ -332,12 +332,12 @@ def chart_rolling_sharpe(eq_df, window=252):
     return fig
 
 
-def chart_strategy_pnl(strat_df):
+def chart_strategy_pnl(strat_df, pnl_column="daily_pnl"):
     if strat_df.empty:
         return go.Figure()
-    if "strategy_id" not in strat_df.columns or "daily_pnl" not in strat_df.columns:
+    if "strategy_id" not in strat_df.columns or pnl_column not in strat_df.columns:
         return go.Figure()
-    totals = strat_df.groupby("strategy_id")["daily_pnl"].sum().sort_values()
+    totals = strat_df.groupby("strategy_id")[pnl_column].sum().sort_values()
     fig = go.Figure(
         go.Bar(
             x=totals.values,
@@ -658,13 +658,12 @@ def main():
             if not trades_df2.empty and "realized_pnl" in trades_df2.columns:
                 closed = trades_df2[trades_df2["realized_pnl"].notna()].copy()
                 if not closed.empty and "strategy_id" in closed.columns:
-                    fake_strat_df = closed.rename(columns={"realized_pnl": "daily_pnl"})
                     st.markdown(
-                        "<div class='sh'>P&L by Strategy (from trades)</div>",
+                        "<div class='sh'>Realized P&L by strategy (closed trades)</div>",
                         unsafe_allow_html=True,
                     )
                     st.plotly_chart(
-                        chart_strategy_pnl(fake_strat_df),
+                        chart_strategy_pnl(closed, pnl_column="realized_pnl"),
                         use_container_width=True,
                         config={"displayModeBar": False},
                     )

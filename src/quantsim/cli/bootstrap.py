@@ -104,6 +104,6 @@ def _bootstrap_with_progress(symbols, start, end, db_path):
             from quantsim.data.ingestion import fetch_equity_history
 
             fetch_equity_history([sym], start=start, end=end, db_path=db_path)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"\n{sym}: download failed: {e}")
     print(f"\r{'Done':50}")

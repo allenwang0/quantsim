@@ -225,8 +225,8 @@ class MeanVarianceOptimizer:
                         "sharpe": (port_ret - self.rf * 252) / (port_vol + 1e-8),
                     }
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Frontier point {tr:.4f} infeasible: {e}")
 
         return pd.DataFrame(frontier)
 
@@ -552,8 +552,8 @@ class BlackLittermanOptimizer:
                 if w.value is not None:
                     result = np.clip(w.value, 0, 0.30)
                     return result / result.sum()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Mean-variance solver failed, using fallback: {e}")
 
         # Analytical solution: w = (risk_aversion * cov)^-1 * mu
         try:
@@ -561,8 +561,8 @@ class BlackLittermanOptimizer:
             w = np.clip(w, 0, 0.30)
             if w.sum() > 0:
                 return w / w.sum()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Mean-variance optimization failed, using fallback: {e}")
 
         return np.ones(n) / n
 

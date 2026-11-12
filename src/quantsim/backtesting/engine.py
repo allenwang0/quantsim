@@ -11,6 +11,7 @@ Only DataHandler and ExecutionHandler differ between modes.
 from __future__ import annotations
 
 import logging
+import sqlite3
 import time
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -289,8 +290,8 @@ class BacktestEngine:
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     (ts_epoch, equity, cash, rpnl, upnl, payload),
                 )
-        except Exception:
-            pass  # Never let DB writes crash the backtest
+        except sqlite3.Error as e:
+            logger.warning(f"Equity snapshot not written: {e}")
 
     def _handle_signal(self, event: SignalEvent) -> None:
         self._signals_processed += 1

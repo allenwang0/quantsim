@@ -1,20 +1,7 @@
 """
-Vectorized Backtesting Engine - inspired by VectorBT's architecture.
-
-What the research reveals as the state of the art:
-- NautilusTrader: Rust-native, nanosecond resolution, 5M rows/second
-- VectorBT PRO: vectorized NumPy/Numba, entire parameter grids in one shot
-- QuantConnect LEAN: event-driven but compiled C# core
-
-Our approach: pure-NumPy vectorized engine that runs parameter sweeps
-100-1000x faster than the event-driven engine. Used for strategy research
-and parameter optimization. Event-driven engine handles live execution.
-
-Key insight from the field: vectorized backtesting is NOT just "fast backtrader."
-It's a fundamentally different computation model: apply signals to the entire
-price matrix simultaneously, then simulate portfolio dynamics in one pass.
-
-Numba JIT compilation makes the portfolio simulation loop C-speed.
+Vectorized backtester: computes a signal matrix with pandas, then simulates
+the portfolio in one Numba-compiled pass (pure Python if Numba is missing).
+Used for parameter sweeps and walk-forward optimization.
 """
 
 from __future__ import annotations
@@ -125,7 +112,7 @@ def _simulate_portfolio_numba(
 
 class VectorizedBacktester:
     """
-    High-speed vectorized backtester for strategy research and parameter optimization.
+    Vectorized backtester for strategy research and parameter optimization.
 
     Architecture:
     1. Load price matrix (n_bars x n_assets) once
@@ -133,8 +120,7 @@ class VectorizedBacktester:
     3. Run portfolio simulation in one Numba-compiled pass
     4. Compute all analytics from the resulting equity curve
 
-    Speed: ~1ms for 10 years of daily data on 50 assets (vs ~2s for event-driven).
-    This enables parameter sweeps across hundreds of configurations in seconds.
+    Measured timings are in benchmarks/results.md.
 
     Signal functions must use only data through bar t for the signal at t.
     The simulator applies the one-bar execution delay; signal functions do

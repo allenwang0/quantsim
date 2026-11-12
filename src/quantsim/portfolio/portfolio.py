@@ -326,7 +326,8 @@ class Portfolio:
                     from datetime import datetime
 
                     exp = datetime.strptime(exp[:10], "%Y-%m-%d").date()
-                except Exception:
+                except ValueError:
+                    logger.warning(f"Unparseable expiration {exp!r} on {pos.asset_id}")
                     continue
 
             # Get current date

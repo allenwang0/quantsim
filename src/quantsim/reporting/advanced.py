@@ -306,8 +306,8 @@ class AdvancedAnalytics:
                     attribution["factor_betas"] = factor_betas
                     residual_vol = float(np.std(y - model.predict(X)) * np.sqrt(252))
                     attribution["residual_volatility"] = residual_vol
-                except Exception:
-                    pass
+                except (ImportError, ValueError, np.linalg.LinAlgError) as e:
+                    logger.warning(f"Factor attribution skipped: {e}")
 
         return attribution
 

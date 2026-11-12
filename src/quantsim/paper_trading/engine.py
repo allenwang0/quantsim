@@ -264,7 +264,7 @@ class PaperEngine:
                     self.portfolio, datetime.now(timezone.utc).replace(tzinfo=None)
                 )
             except Exception:
-                pass
+                logger.exception("Health check failed")
             equity = self.portfolio.total_equity
             dd = self.portfolio.current_drawdown
             n_pos = len(self.portfolio.positions)

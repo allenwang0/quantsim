@@ -351,8 +351,8 @@ class AlpacaLiveDataHandler(DataHandler):
                         df["adj_close"] = df.get("adj close", df["close"])
                         df.index = pd.to_datetime(df.index, utc=True)
                         self._bar_cache[symbol] = df
-                except Exception:
-                    pass
+                except (KeyError, ValueError) as e:
+                    logger.warning(f"yfinance fallback: no usable data for {symbol}: {e}")
             logger.info(f"yfinance fallback: loaded {len(self._bar_cache)} assets")
         except Exception as e:
             logger.error(f"yfinance fallback failed: {e}")
