@@ -1,0 +1,30 @@
+{
+  "data": "Synthetic GBM with regime shifts, seed 7, 2520 daily bars (10 years)",
+  "strategy": "SMA crossover 50/200",
+  "runs": 5,
+  "cpu": "Apple M5 Pro",
+  "python": "3.12.13",
+  "numba": "0.68.1",
+  "numpy": "2.5.4",
+  "quantsim": "3.0.0",
+  "rows": [
+    {
+      "assets": 1,
+      "vectorized_median_s": 0.11069679097272456,
+      "event_median_s": 0.9763067499734461,
+      "speedup": 8.8196481704154
+    },
+    {
+      "assets": 10,
+      "vectorized_median_s": 0.1059235839638859,
+      "event_median_s": 11.96008620900102,
+      "speedup": 112.91240119932827
+    },
+    {
+      "assets": 50,
+      "vectorized_median_s": 0.10897354199551046,
+      "event_median_s": 54.734430750017054,
+      "speedup": 502.2726594706083
+    }
+  ]
+}

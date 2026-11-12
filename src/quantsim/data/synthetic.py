@@ -60,3 +60,37 @@ def regime_gbm_prices(
     prices = pd.DataFrame(closes, index=index, columns=[f"SYN{i}" for i in range(n_assets)])
     regime_names = pd.Series([REGIMES[r][0] for r in regimes], index=index, name="regime")
     return prices, regime_names
+
+
+def write_prices_to_db(db_path: str, prices: pd.DataFrame, volume: int = 10_000_000) -> None:
+    """
+    Store close prices as daily OHLCV bars for the event-driven engine.
+
+    Each bar opens at the previous close, so a next-open fill and a
+    next-close fill differ only by that session's move. Rows are labeled
+    source='synthetic'.
+    """
+    from quantsim.core.database import db_conn
+    from quantsim.core.database_v2 import init_full_db
+
+    init_full_db(db_path)
+    opens = prices.shift(1).fillna(prices.iloc[0])
+    rows, factors = [], []
+    for asset in prices.columns:
+        for ts, o, c in zip(prices.index, opens[asset], prices[asset]):
+            epoch = int(pd.Timestamp(ts).normalize().tz_localize("UTC").timestamp())
+            rows.append((asset, epoch, o, max(o, c), min(o, c), c, volume, "synthetic"))
+            factors.append((asset, epoch))
+    with db_conn(db_path) as conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO raw_bars "
+            "(asset_id, timestamp, open, high, low, close, volume, source) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+        conn.executemany(
+            "INSERT OR REPLACE INTO adjustment_factors "
+            "(asset_id, effective_date, cumulative_split_factor, cumulative_div_adjustment) "
+            "VALUES (?, ?, 1.0, 0.0)",
+            factors,
+        )
