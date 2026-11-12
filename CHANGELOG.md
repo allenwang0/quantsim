@@ -37,3 +37,6 @@ Fixes in this section change reported backtest results.
   new position kept the old cost, so its unrealized P&L was wrong and
   equity no longer equalled initial capital plus realized and unrealized
   P&L.
+- Vectorized engine: no trade happens on a forward-filled (stale) price;
+  the position is taken on the asset's next real bar. `calendar="NYSE"`
+  aligns rows to exchange sessions.

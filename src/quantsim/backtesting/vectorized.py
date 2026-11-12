@@ -55,6 +55,7 @@ def _simulate_portfolio_numba(
     slippage_pct: float,  # fraction of price per trade
     position_size_pct: float,  # fraction of equity per position at entry
     rebalance_threshold: float = np.inf,
+    stale=None,  # optional (n_bars, n_assets) bool: True where the price was forward-filled
 ) -> Tuple:
     """
     JIT-compiled portfolio simulation.
@@ -67,6 +68,10 @@ def _simulate_portfolio_numba(
     direction changes. While the direction holds it is resized only if it has
     drifted from its target by more than rebalance_threshold, measured as
     |target - held| / |target|. The default, inf, never resizes.
+
+    No trade happens in an asset on a bar whose price is stale (forward-filled
+    because the asset did not trade that session); the wanted position is
+    taken on the asset's next real bar.
     """
     n_bars, n_assets = prices.shape
     equity_curve = np.zeros(n_bars)
@@ -86,6 +91,8 @@ def _simulate_portfolio_numba(
             equity += current_positions[a] * exec_price[a]
 
         for a in range(n_assets):
+            if stale is not None and stale[t, a]:
+                continue
             target_direction = prev_signal[a]
             held_direction = np.sign(current_positions[a])
 
@@ -141,8 +148,18 @@ class VectorizedBacktester:
         commission_rate: float = 0.001,  # 0.1% per trade
         slippage_pct: float = 0.001,  # 0.1% slippage
         position_size_pct: float = 0.10,  # 10% per position
+        calendar: Optional[str] = None,  # e.g. "NYSE": align rows to that exchange's sessions
     ):
+        if calendar is not None:
+            import pandas_market_calendars as mcal
+
+            schedule = mcal.get_calendar(calendar).schedule(
+                start_date=prices.index.min(), end_date=prices.index.max()
+            )
+            prices = prices.reindex(pd.DatetimeIndex(schedule.index).tz_localize(prices.index.tz))
+        self.stale = prices.isna().to_numpy()
         self.prices = prices.ffill().dropna(how="all")
+        self.stale = self.stale[len(prices) - len(self.prices) :]
         self.initial_capital = initial_capital
         self.commission = commission_rate
         self.slippage = slippage_pct
@@ -188,6 +205,7 @@ class VectorizedBacktester:
             commission_rate=self.commission,
             slippage_pct=self.slippage,
             position_size_pct=self.position_size,
+            stale=self.stale,
         )
 
         elapsed = time.perf_counter() - t0
