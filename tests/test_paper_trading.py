@@ -2,10 +2,13 @@
 
 import os
 
+import pytest
+
 
 class TestAlpacaIntegration:
+    @pytest.mark.live
     def test_alpaca_handler_initializes_without_credentials(self):
-        """Should gracefully fall back to yfinance when no Alpaca credentials."""
+        """Without credentials the data handler falls back to a yfinance download (network)."""
 
         # Temporarily clear credentials
         orig_key = os.environ.pop("ALPACA_API_KEY", None)
