@@ -8,7 +8,7 @@ A Python backtesting framework for daily stock prices with two engines: an event
 
 - **Two independent engines that agree.** A parity test runs the same strategy through both and requires matching trade counts and returns within 0.5 percentage points.
 - **Up to 500x faster vectorized engine** (Numba): 50 assets over 10 years in 0.11 s versus 54.7 s event-driven.
-- **No lookahead by default.** A signal on one day fills at the next day's open; the report measures how much same-day fills would inflate returns.
+- **No lookahead by default.** A signal on one day fills at the next day's open; the report measures how much same-day fills would change returns.
 - **Overfitting checks:** walk-forward testing, a bootstrap confidence interval on the Sharpe ratio, and a deflated Sharpe check that discounts the Sharpe ratio for how many strategy variants were tried.
 
 ## Run it
