@@ -1,5 +1,10 @@
 name: Report
 
+# Publishes docs/index.html as committed. The page is built by
+# scripts/build_report.py from committed results (results/demo/results.json,
+# benchmarks/results.json, results/tests.json); this workflow only checks that
+# the committed page is current and never re-runs a backtest or benchmark.
+
 on:
   push:
     branches: [main]
@@ -16,18 +21,24 @@ concurrency:
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # build_report.py links results to the commit that last changed them
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install ".[optimization,fast]"
-      - run: python tests/fixtures/make_fixture.py
-      - run: quantsim report --prices tests/fixtures/synthetic_prices.csv --strategy sma momentum --out site
+      - name: Report kit matches its pinned hashes
+        run: python report-kit/check_kit.py
+      - name: Committed report and README block are current
+        run: |
+          python scripts/build_report.py --readme README.md
+          git diff --exit-code -- docs README.md
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: docs
 
   deploy:
     needs: build

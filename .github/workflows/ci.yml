@@ -12,6 +12,8 @@ jobs:
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # tests/test_build_report.py rebuilds the report, which links results by commit
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -22,3 +24,21 @@ jobs:
       - run: pytest -m "not live and not browser" -q
       - run: python -m playwright install --with-deps chromium
       - run: pytest -m browser -q
+
+  report:
+    # The published page is built from committed results; fail if it, the README
+    # block or the vendored report kit has drifted.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Report kit matches its pinned hashes
+        run: python report-kit/check_kit.py
+      - name: Committed report and README block are current
+        run: |
+          python scripts/build_report.py --readme README.md
+          git diff --exit-code -- docs README.md
