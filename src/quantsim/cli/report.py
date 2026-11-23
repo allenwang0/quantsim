@@ -126,7 +126,10 @@ def main(argv=None) -> int:
     parser.add_argument("--end", default=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     parser.add_argument("--strategy", nargs="+", default=["sma"], choices=sorted(STRATEGIES))
     parser.add_argument(
-        "--cost-bps", default="0,5,10,25", help="Comma-separated costs per trade in bps"
+        "--cost-bps",
+        default="0,5,10,25",
+        help="Cost-sensitivity levels in bps; each charges that many bps of commission "
+        "and of slippage per trade",
     )
     parser.add_argument(
         "--out", type=Path, default=None, help="Output directory (default reports/<run>)"

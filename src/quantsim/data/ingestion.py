@@ -29,7 +29,8 @@ FRED_SERIES = {
     "T10YIE": "10-year breakeven inflation",
 }
 
-# Default liquid options universe for backtesting
+# Liquid ETFs and large caps. Not referenced by the backtester, which has no options
+# support; `quantsim bootstrap` downloads get_universe() below.
 LIQUID_OPTIONS_UNIVERSE = [
     "SPY",
     "QQQ",
