@@ -697,18 +697,17 @@ def readme_block(results, bench, tests, facts):
     big = d["big"]
     return "\n".join(
         [
-            f"- **Two engines that agree.** A parity test runs one strategy through both and requires equal trade "
-            f"counts and total returns within {pct_pp(facts['parity_tol'])}.",
-            f"- **Vectorized engine {ratio(d['speedup'])} faster** on {big['assets']} assets × 10 years: "
-            f"{secs(big['vectorized_median_s'])} vs {secs(big['event_median_s'])} event-driven (median of {d['runs']} "
-            f"runs, synthetic data, one strategy, {bench['cpu']}).",
-            "- **No lookahead by default.** A signal on one day fills at the next day's open; on the seeded demo, "
-            f"same-bar fills would change the SMA crossover's return by {signed(d['gap'], 1)} pp.",
-            f"- **Overfitting checks.** Walk-forward testing, bootstrap Sharpe intervals and a deflated Sharpe ratio "
-            f"that discounts for {d['trials']} trials. On synthetic data the deflated Sharpe is {d['dsr']:.2f}: no "
-            f"edge is certified.",
-            f"- **Default costs:** {facts['commission'] * 100:g}% commission + {facts['slippage'] * 100:g}% slippage "
-            "per trade in the vectorized engine.",
+            f"- **Two engines that agree:** equal trade counts and total returns within "
+            f"{pct_pp(facts['parity_tol'])} in the parity test.",
+            f"- **Vectorized engine {ratio(d['speedup'])} faster:** {secs(big['vectorized_median_s'])} vs "
+            f"{secs(big['event_median_s'])} for {big['assets']} assets × 10 years (median of {d['runs']} runs, "
+            f"synthetic data, one strategy, {bench['cpu']}).",
+            "- **No lookahead:** orders fill at the next bar's open; same-bar fills would move the demo's "
+            f"return by {signed(d['gap'], 1)} pp.",
+            f"- **Overfitting checks:** walk-forward, bootstrap Sharpe intervals and a deflated Sharpe that "
+            f"discounts for {d['trials']} trials ({d['dsr']:.2f} on synthetic data: no edge certified).",
+            f"- **Costs on by default:** {facts['commission'] * 100:g}% commission + "
+            f"{facts['slippage'] * 100:g}% slippage per trade.",
         ]
     )
 
