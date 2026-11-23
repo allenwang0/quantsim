@@ -9,9 +9,9 @@ A Python backtester for daily stock prices with two engines that agree: an event
 ## Highlights
 
 <!-- results:start -->
-- **Two engines that agree:** equal trade counts and total returns within 0.5 pp in the parity test.
-- **Vectorized engine 460× faster:** 0.10 s vs 45.5 s for 50 assets × 10 years (median of 5 runs, synthetic data, one strategy, Apple M5 Pro).
-- **No lookahead:** orders fill at the next bar's open; same-bar fills would move the demo's return by +1.3 pp.
+- **Two engines that agree:** equal trade counts and total returns within 0.5 pp in the parity test.
+- **Vectorized engine 460× faster:** 0.10 s vs 45.5 s for 50 assets × 10 years (median of 5 runs, synthetic data, one strategy, Apple M5 Pro).
+- **No lookahead:** orders fill at the next bar's open; same-bar fills would move the demo's return by +1.3 pp.
 - **Overfitting checks:** walk-forward, bootstrap Sharpe intervals and a deflated Sharpe that discounts for 28 trials (0.00 on synthetic data: no edge certified).
 - **Costs on by default:** 0.1% commission + 0.1% slippage per trade.
 <!-- results:end -->

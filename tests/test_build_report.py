@@ -26,7 +26,7 @@ PAGE = ROOT / "docs" / "index.html"
 
 def text_of(page: str) -> str:
     text = html.unescape(re.sub(r"<[^>]+>", "", page))
-    return re.sub("[\u2009\u202f]", " ", text).replace("\u2212", "-")
+    return text.replace("\u2212", "-")
 
 
 @pytest.fixture(scope="module")
@@ -61,7 +61,7 @@ def test_hero_is_the_speed_ratio_of_the_largest_benchmark(fresh, data):
     assert speedup > 1, "owner rule: the hero never states a zero or negative result"
     text = text_of(fresh)
     assert (
-        f"{big['vectorized_median_s']:.2f} s vs {big['event_median_s']:.1f} s per backtest, "
+        f"{big['vectorized_median_s']:.2f}\u00a0s vs {big['event_median_s']:.1f}\u00a0s per backtest, "
         f"median of {bench['runs']} runs" in text
     )
     assert "Synthetic data" in text.split("Findings")[0], (
@@ -74,7 +74,7 @@ def test_hero_parity_matches_the_tolerance_the_test_enforces(fresh):
     # "Agree within 0.5 pp" is only true while the parity test asserts it.
     source = (ROOT / "tests" / "test_engine_parity.py").read_text()
     tol = float(re.search(r"abs\(event_return - vector_return\) < ([\d.]+)", source).group(1))
-    assert f"Both engines agree within {tol * 100:g} pp" in text_of(fresh)
+    assert f"Both engines agree within {tol * 100:g}\u00a0pp" in text_of(fresh)
 
 
 def test_benchmark_samples_support_the_reported_medians(data):
@@ -127,7 +127,7 @@ def test_fill_timing_gap_matches_results(fresh, data):
     results, _, _ = data
     fill = results["strategies"]["sma"]["fill_timing"]
     gap = fill["same_bar_open_return_pct"] - fill["next_bar_open_return_pct"]
-    assert f"SMA's return by {abs(gap):.1f} pp" in text_of(fresh)
+    assert f"SMA's return by {abs(gap):.1f}\u00a0pp" in text_of(fresh)
 
 
 def test_every_evidence_reference_resolves(fresh):

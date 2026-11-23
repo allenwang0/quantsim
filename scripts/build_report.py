@@ -40,7 +40,6 @@ HOME_URL = "https://allenwang0.github.io/"
 PRIMARY, SECONDARY = "sma", "momentum"
 README_START = "<!-- results:start -->"
 README_END = "<!-- results:end -->"
-THIN = " "  # narrow no-break space: "0.5 pp" never wraps
 MINUS = "−"
 
 
@@ -62,8 +61,8 @@ def plain(value: float, digits: int = 2) -> str:
 
 def secs(value: float) -> str:
     if value >= 10:
-        return f"{value:,.1f}{THIN}s"
-    return f"{value:.2f}{THIN}s"
+        return rk.num(f"{value:,.1f}", "s")
+    return rk.num(f"{value:.2f}", "s")
 
 
 def ratio(value: float) -> str:
@@ -75,7 +74,7 @@ def ratio(value: float) -> str:
 
 
 def pct_pp(value: float) -> str:
-    return f"{value * 100:g}{THIN}pp"
+    return rk.num(f"{value * 100:g}", "pp")
 
 
 def params_text(params: dict) -> str:
@@ -284,15 +283,13 @@ def xy_chart(
     ml = tick_w + 14
     end_texts = [s.get("end", s["name"]) for s in series]
     mr = 16 if legend else max(rk.text_width(t) for t in end_texts) + 18
-    rows_needed = 1
     if legend:
-        kx = 0.0
-        for s in series:
-            w = 24 + rk.text_width(s["name"])
-            if kx and kx + w > width:
-                rows_needed, kx = rows_needed + 1, 0.0
-            kx += w + 16
-    mt = (32 + 20 * rows_needed) if legend else 34
+        key, key_h = rk.legend(
+            [(s["name"], "line", bool(s.get("accent")), bool(s.get("dash"))) for s in series],
+            width=width,
+            y=10.0,
+        )
+    mt = (32 + key_h) if legend else 34
     mb = 46
     x0, x1 = fx(x_ticks[0]), fx(x_ticks[-1])
     y0, y1 = fy(y_ticks[0]), fy(y_ticks[-1])
@@ -333,19 +330,7 @@ def xy_chart(
                     f'<circle cx="{f(px(a))}" cy="{f(py(b))}" r="{4 if s.get("accent") else 3.5}" class="{fill}"/>'
                 )
     if legend:
-        kx, ky = 0.0, 10.0
-        for s in series:
-            if kx and kx + 24 + rk.text_width(s["name"]) > width:
-                kx, ky = 0.0, ky + 20
-            stroke = "c-stroke-accent" if s.get("accent") else "c-stroke-muted"
-            dash = ' stroke-dasharray="5 4"' if s.get("dash") else ""
-            parts.append(
-                f'<path class="{stroke}" stroke-width="2"{dash} d="M{f(kx)} {f(ky)}H{f(kx + 18)}"/>'
-            )
-            parts.append(
-                T(kx + 24, ky + 4, s["name"], "c-label c-hi" if s.get("accent") else "c-label")
-            )
-            kx += 24 + rk.text_width(s["name"]) + 16
+        parts.append(key)
     else:
         ends = [py(s["points"][-1][1]) + 4 for s in series]
         placed = spread_labels(ends)
@@ -437,7 +422,7 @@ def fill_chart(d, uid, width, height, legend):
             "accent": True,
         },
     ]
-    title = f"Same-bar fills change SMA crossover's total return by {signed(gap, 1)} pp"
+    title = f"Same-bar fills change SMA crossover's total return by {rk.num(signed(gap, 1), 'pp')}"
     desc = (
         f"Total return of the SMA crossover from {fill['dates'][0]} to {fill['dates'][-1]} on one synthetic asset. "
         f"Next-bar-open fills end at {signed(fill['next_bar_open_return_pct'], 1, '%')} total return; "
@@ -567,7 +552,9 @@ def cost_chart(results, d, uid, width, height, legend):
     y_ticks = rk.nice_ticks(min(ys), max(ys), 5)
     x_ticks = rk.nice_ticks(min(xs), max(xs), 6)
     desc = " ".join(
-        f"{s['name']}: " + ", ".join(f"{x:g} bps Sharpe {plain(y)}" for x, y in s["points"]) + "."
+        f"{s['name']}: "
+        + ", ".join(f"{rk.num(format(x, 'g'), 'bps')} Sharpe {plain(y)}" for x, y in s["points"])
+        + "."
         for s in series
     )
     default = d["cost"]["default_bps"]
@@ -703,7 +690,7 @@ def readme_block(results, bench, tests, facts):
             f"{secs(big['event_median_s'])} for {big['assets']} assets × 10 years (median of {d['runs']} runs, "
             f"synthetic data, one strategy, {bench['cpu']}).",
             "- **No lookahead:** orders fill at the next bar's open; same-bar fills would move the demo's "
-            f"return by {signed(d['gap'], 1)} pp.",
+            f"return by {rk.num(signed(d['gap'], 1), 'pp')}.",
             f"- **Overfitting checks:** walk-forward, bootstrap Sharpe intervals and a deflated Sharpe that "
             f"discounts for {d['trials']} trials ({d['dsr']:.2f} on synthetic data: no edge certified).",
             f"- **Costs on by default:** {facts['commission'] * 100:g}% commission + "
@@ -797,7 +784,7 @@ def evidence_rows(d, facts, code_sha, res_sha, bench_sha, tests_sha):
         ),
         (
             "E7",
-            f"Same-bar fills change SMA total return by {signed(d['gap'], 1)} pp "
+            f"Same-bar fills change SMA total return by {rk.num(signed(d['gap'], 1), 'pp')} "
             f"({signed(d['fill']['same_bar_open_return_pct'], 1, '%')} vs "
             f"{signed(d['fill']['next_bar_open_return_pct'], 1, '%')})",
             results_rel,
@@ -1043,7 +1030,7 @@ def build_page(results, bench, tests, facts, shas):
     )
     fill_fig = rk.figure(
         "fig-fill",
-        f"Trading at the signal bar's own open {gap_word} SMA's return by {abs(d['gap']):.1f} pp",
+        f"Trading at the signal bar's own open {gap_word} SMA's return by {rk.num(format(abs(d['gap']), '.1f'), 'pp')}",
         rk.variants(
             fill_chart(d, "fill-d", 1000, 400, False),
             fill_chart(d, "fill-t", 640, 340, False),
@@ -1101,7 +1088,7 @@ def build_page(results, bench, tests, facts, shas):
             rk.tag(
                 "p",
                 Raw(
-                    f"The gap has no fixed sign: same-bar fills move the momentum strategy by {signed(other_gap, 1)} pp on "
+                    f"The gap has no fixed sign: same-bar fills move the momentum strategy by {rk.num(signed(other_gap, 1), 'pp')} on "
                     f"the same series. A test over 50 seeded random walks checks that the next-open default gives a "
                     f"close-peeking strategy no edge."
                 ),
@@ -1193,7 +1180,7 @@ def build_page(results, bench, tests, facts, shas):
     cost_fig = rk.figure(
         "fig-costs",
         (
-            f"At the default {cost['default_bps']:g} bps each, SMA's full-sample Sharpe is {plain(default_sharpe)}"
+            f"At the default {rk.num(format(cost['default_bps'], 'g'), 'bps')} each, SMA's full-sample Sharpe is {plain(default_sharpe)}"
             if default_sharpe is not None
             else "Sharpe falls as costs rise"
         ),
@@ -1214,7 +1201,7 @@ def build_page(results, bench, tests, facts, shas):
         question="How fast does the result decay as trading costs rise?",
         table=rk.data_table(
             "Annualized Sharpe by cost level (bps of commission and of slippage, per trade)",
-            ["Strategy"] + [f"{c:g} bps" for c in cost["cost_bps"]],
+            ["Strategy"] + [rk.num(f"{c:g}", "bps") for c in cost["cost_bps"]],
             [
                 [s["label"]] + [plain(v) for v in s["cost_sensitivity"]["sharpe"]]
                 for s in (sma, mom)
@@ -1379,7 +1366,7 @@ def build_page(results, bench, tests, facts, shas):
             ),
             (
                 "Load average",
-                f"{load_b} before, {load_a} after (1 / 5 / 15 min); shared machine, benchmark run "
+                f"{load_b} before, {load_a} after (1 / 5 / {rk.num(15, 'min')}); shared machine, benchmark run "
                 f"under an exclusive lock"
                 if load_b
                 else None,
