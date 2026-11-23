@@ -90,7 +90,7 @@ def card(results: dict, strategy: str) -> dict:
         "command": results["meta"]["command"],
         "data_note": note,
         "metric": {
-            "label": "Deflated Sharpe ratio",
+            "label": "Deflated Sharpe probability",
             "value": dsr,
             "unit": "probability",
             "higher_is_better": True,
