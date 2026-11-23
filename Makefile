@@ -17,8 +17,9 @@ lint:
 	uv run ruff format --check .
 	uv run mypy
 
-report: fixture
-	uv run quantsim report --prices tests/fixtures/synthetic_prices.csv --strategy sma momentum --out site
+report: fixture  ## rebuild results/demo (seeded) and the published page docs/index.html
+	uv run quantsim report --prices tests/fixtures/synthetic_prices.csv --strategy sma momentum --out results/demo --card
+	python3 scripts/build_report.py --readme README.md
 
 bench:
 	cd benchmarks && uv run python bench_engines.py

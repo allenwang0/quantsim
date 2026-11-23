@@ -5,11 +5,18 @@ HTML page that renders it with Plotly.
 Every number on the page is read from the embedded results; nothing is typed
 by hand. Views: fill-timing impact, walk-forward equity, Sharpe uncertainty,
 cost sensitivity and the engine benchmark.
+
+Costs: the fill-timing view runs the event engine with its default cost models
+(BacktestEngine: volume-proportional slippage, no commission); walk-forward uses
+the vectorized defaults (VectorizedBacktester: commission_rate and slippage_pct);
+cost sensitivity sweeps commission and slippage together. Each view records the
+costs it used in its "costs" field.
 """
 
 from __future__ import annotations
 
 import html
+import inspect
 import json
 import tempfile
 from pathlib import Path
@@ -19,7 +26,7 @@ import numpy as np
 import pandas as pd
 
 from quantsim.backtesting.engine import BacktestEngine
-from quantsim.backtesting.execution import FillModel, NoSlippage, ZeroCommission
+from quantsim.backtesting.execution import FillModel
 from quantsim.backtesting.vectorized import (
     VectorizedBacktester,
     momentum_signal,
@@ -36,6 +43,10 @@ PLOTLY_URL = "https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.
 INITIAL_CAPITAL = 100_000.0
 POSITION_SIZE = 1.0
 BOOTSTRAP_SIMULATIONS = 5000
+_VECTOR_DEFAULTS = inspect.signature(VectorizedBacktester.__init__).parameters
+DEFAULT_COMMISSION = float(_VECTOR_DEFAULTS["commission_rate"].default)
+DEFAULT_SLIPPAGE = float(_VECTOR_DEFAULTS["slippage_pct"].default)
+EVENT_COSTS = "event-engine defaults: volume-proportional slippage, no commission"
 
 STRATEGIES: Dict[str, Dict[str, Any]] = {
     "sma": {
@@ -74,7 +85,11 @@ def _annualized_sharpe(returns: pd.Series) -> float:
 
 
 def fill_timing_view(prices: pd.Series, strategy: str, params: Dict) -> Dict:
-    """Run the event engine with next-bar-open fills and with the old same-bar fills."""
+    """Run the event engine with next-bar-open fills and with the old same-bar fills.
+
+    Both runs use the engine's default slippage and commission models, so the only
+    difference between them is when an order fills.
+    """
     frame = prices.to_frame()
     curves = {}
     trade_counts = {}
@@ -88,8 +103,6 @@ def fill_timing_view(prices: pd.Series, strategy: str, params: Dict) -> Dict:
                 start=prices.index[0].to_pydatetime(),
                 end=prices.index[-1].to_pydatetime(),
                 initial_capital=INITIAL_CAPITAL,
-                slippage_model=NoSlippage(),
-                commission_model=ZeroCommission(),
                 fill_mode=mode,
                 warmup_bars=0,
                 db_path=db_path,
@@ -120,9 +133,10 @@ def fill_timing_view(prices: pd.Series, strategy: str, params: Dict) -> Dict:
         "next_bar_open_return_pct": round(honest_return, 1),
         "same_bar_open_return_pct": round(lookahead_return, 1),
         "gap_pp": gap,
+        "costs": EVENT_COSTS,
         "takeaway": (
             f"Over the full sample ({_dates(common)[0]} to {_dates(common)[-1]}, fixed "
-            "parameters), same-bar fills "
+            f"parameters, {EVENT_COSTS}), same-bar fills "
             f"{'overstated' if gap >= 0 else 'understated'} total return by "
             f"{abs(gap)} pp ({round(lookahead_return, 1)}% vs {round(honest_return, 1)}% "
             "with next-bar-open fills). Bars are rebuilt from closes, so each open is the "
@@ -131,12 +145,18 @@ def fill_timing_view(prices: pd.Series, strategy: str, params: Dict) -> Dict:
     }
 
 
-def walk_forward_view(prices: pd.Series, strategy: str, cost: float, seed: int) -> Dict:
+def walk_forward_view(prices: pd.Series, strategy: str, seed: int) -> Dict:
     spec = STRATEGIES[strategy]
     frame = prices.to_frame()
     wfo = WalkForwardOptimizer(frame, train_years=3, test_months=12, step_months=12)
     result = wfo.optimize_and_evaluate(
-        spec["signal"], spec["grid"], commission_rate=cost, slippage_pct=0.0
+        spec["signal"],
+        spec["grid"],
+        commission_rate=DEFAULT_COMMISSION,
+        slippage_pct=DEFAULT_SLIPPAGE,
+    )
+    costs = (
+        f"{DEFAULT_COMMISSION * 100:g}% commission + {DEFAULT_SLIPPAGE * 100:g}% slippage per trade"
     )
     windows = []
     stitched: List[pd.Series] = []
@@ -179,10 +199,11 @@ def walk_forward_view(prices: pd.Series, strategy: str, cost: float, seed: int) 
         "oos_equity_series": oos,
         "oos_return_pct": oos_return,
         "buy_and_hold_return_pct": hold_return,
+        "costs": costs,
         "takeaway": f"Out of sample, over {len(windows)} stitched one-year test windows "
-        f"({_dates(oos.index)[0]} to {_dates(oos.index)[-1]}, next-bar fills, parameters refit "
-        f"each window), the strategy returned {oos_return}% against {hold_return}% for "
-        "buy-and-hold.",
+        f"({_dates(oos.index)[0]} to {_dates(oos.index)[-1]}, next-bar fills, {costs}, "
+        f"parameters refit each window), the strategy returned {oos_return}% against "
+        f"{hold_return}% for buy-and-hold (no costs).",
     }
 
 
@@ -218,12 +239,14 @@ def sharpe_uncertainty_view(oos_equity: pd.Series, dsr: float, trials: int, seed
 def cost_sensitivity_view(
     prices: pd.Series, strategy: str, params: Dict, costs_bps: List[float]
 ) -> Dict:
+    """Sharpe at each cost level; a level of c bps charges c bps commission and c bps
+    slippage per trade, so the vectorized default is the 10 bps level."""
     sharpes = []
     for bps in costs_bps:
         backtester = VectorizedBacktester(
             prices.to_frame(),
             commission_rate=bps / 10_000,
-            slippage_pct=0.0,
+            slippage_pct=bps / 10_000,
             position_size_pct=POSITION_SIZE,
         )
         result = backtester.run(STRATEGIES[strategy]["signal"], params)
@@ -236,8 +259,11 @@ def cost_sensitivity_view(
         takeaway = f"Sharpe is not positive even at {costs_bps[0]:g} bps ({sharpes[0]})."
     else:
         takeaway = f"Sharpe turns negative above {positive[-1]:g} bps per trade."
+    takeaway += " Each level charges that many bps of commission and of slippage per trade."
     return {
         "params": params,
+        "position_size": POSITION_SIZE,
+        "default_bps": DEFAULT_COMMISSION * 10_000,
         "cost_bps": [float(c) for c in costs_bps],
         "sharpe": sharpes,
         "takeaway": takeaway,
@@ -268,9 +294,8 @@ def build_results(
 ) -> Dict:
     """Run every view for each strategy on one price series and collect the results."""
     results: Dict[str, Any] = {"meta": {**meta, "data": data_info}, "strategies": {}}
-    base_cost = costs_bps[0] / 10_000
     for name in strategies:
-        wf = walk_forward_view(prices, name, base_cost, seed)
+        wf = walk_forward_view(prices, name, seed)
         oos_series = wf.pop("oos_equity_series")
         params = most_common_params(wf["windows"])
         results["strategies"][name] = {

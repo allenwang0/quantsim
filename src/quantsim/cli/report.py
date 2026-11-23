@@ -14,6 +14,7 @@ Usage:
 
 import argparse
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -68,47 +69,63 @@ def load_db(symbol: str, start: str, end: str, db_path: str | None):
     return prices, info
 
 
-def card(results: dict, strategy: str) -> dict:
-    data = results["meta"]["data"]
-    s = results["strategies"][strategy]
-    windows = s["walk_forward"]["windows"][-12:]
-    dsr = s["walk_forward"]["dsr"]
-    if data.get("synthetic"):
-        note = f"Seeded synthetic GBM with regime shifts, seed {data['seed']}"
-    else:
-        note = f"{data['source']}, {data['symbol']}, {data['start']} to {data['end']}"
+PARITY_TEST = Path("tests/test_engine_parity.py")
+
+
+def parity_tolerance(path: Path = PARITY_TEST) -> float | None:
+    """Return-gap tolerance the parity test enforces, read from the test itself."""
+    if not path.exists():
+        return None
+    match = re.search(r"abs\(event_return - vector_return\) < ([\d.]+)", path.read_text())
+    return float(match.group(1)) if match else None
+
+
+def card(results: dict, parity_tol: float | None = None) -> dict:
+    """Portfolio card. Headline = the measured engine speedup (median of the
+    benchmark runs at the largest asset count), the same result as the report's
+    hero; the deflated-Sharpe check stays in the report body."""
+    bench = results.get("benchmark")
+    if not bench:
+        raise SystemExit("card needs benchmark results: run benchmarks/bench_engines.py first")
+    big = max(bench["rows"], key=lambda r: r["assets"])
+    speedup = big["event_median_s"] / big["vectorized_median_s"]
+    parity = f"; engines agree within {parity_tol * 100:g} pp" if parity_tol else ""
     takeaway = (
-        f"{s['label']}: deflated Sharpe {dsr} after {s['walk_forward']['total_trials']} trials; "
-        f"out-of-sample return {s['walk_forward']['oos_return_pct']}%."
+        f"Vectorized engine {speedup:.0f}x faster than event-driven, {big['assets']} assets x "
+        f"10 years, synthetic data{parity}."
     )
+
+    def row(label: str, engine: str) -> dict:
+        runs = big.get(f"{engine}_runs_s") or [big[f"{engine}_median_s"]]
+        return {
+            "label": label,
+            "low": round(min(runs), 4),
+            "mid": round(big[f"{engine}_median_s"], 4),
+            "high": round(max(runs), 4),
+        }
+
     return {
         "schema_version": 1,
         "repo": "quantsim",
         "sha": results["meta"]["sha"],
         "generated_at": results["meta"]["generated_at"],
         "command": results["meta"]["command"],
-        "data_note": note,
+        "data_note": (
+            f"{bench['data']}; {bench['strategy']}; median of {bench['runs']} runs, {bench['cpu']}"
+        ),
         "metric": {
-            "label": "Deflated Sharpe ratio",
-            "value": dsr,
-            "unit": "probability",
+            "label": f"Vectorized vs event-driven speed, {big['assets']} assets",
+            "value": round(speedup, 1),
+            "unit": "x",
             "higher_is_better": True,
         },
         "takeaway": takeaway[:140],
         "chart": {
             "type": "interval",
-            "x_label": "Annualized Sharpe",
-            "x_unit": "",
-            "x_scale": "linear",
-            "rows": [
-                {
-                    "label": w["label"],
-                    "low": w["ci_low"],
-                    "mid": w["oos_sharpe"],
-                    "high": w["ci_high"],
-                }
-                for w in windows
-            ],
+            "x_label": "Seconds per backtest (min, median, max)",
+            "x_unit": "s",
+            "x_scale": "log",
+            "rows": [row("Vectorized", "vectorized"), row("Event-driven", "event")],
         },
     }
 
@@ -126,7 +143,10 @@ def main(argv=None) -> int:
     parser.add_argument("--end", default=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     parser.add_argument("--strategy", nargs="+", default=["sma"], choices=sorted(STRATEGIES))
     parser.add_argument(
-        "--cost-bps", default="0,5,10,25", help="Comma-separated costs per trade in bps"
+        "--cost-bps",
+        default="0,5,10,25",
+        help="Cost-sensitivity levels in bps; each charges that many bps of commission "
+        "and of slippage per trade",
     )
     parser.add_argument(
         "--out", type=Path, default=None, help="Output directory (default reports/<run>)"
@@ -166,7 +186,7 @@ def main(argv=None) -> int:
         site = Path("site")
         site.mkdir(exist_ok=True)
         (site / "card.json").write_text(
-            json.dumps(card(results, args.strategy[0]), indent=2) + "\n"
+            json.dumps(card(results, parity_tolerance()), indent=2) + "\n"
         )
         print(f"Wrote {site / 'card.json'}")
     return 0
