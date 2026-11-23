@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "repo": "quantsim",
-  "sha": "487277a94afdb1930684b075298050bdb37e49a6",
-  "generated_at": "2026-11-12T06:26:06Z",
-  "command": "quantsim report --prices tests/fixtures/synthetic_prices.csv --strategy sma momentum --out reports/demo --card",
+  "sha": "9bb79079900bf362db220510adc7a206e8a90185",
+  "generated_at": "2026-11-23T04:50:33Z",
+  "command": "quantsim report --prices tests/fixtures/synthetic_prices.csv --strategy sma momentum --out site --card",
   "data_note": "Seeded synthetic GBM with regime shifts, seed 20240611",
   "metric": {
-    "label": "Deflated Sharpe ratio",
+    "label": "Deflated Sharpe probability",
     "value": 0.0,
     "unit": "probability",
     "higher_is_better": true
   },
-  "takeaway": "SMA crossover: deflated Sharpe 0.0 after 28 trials; out-of-sample return -3.6%.",
+  "takeaway": "SMA crossover on synthetic data: no edge. Deflated Sharpe probability 0.00 after 28 trials; out-of-sample return -3.6%.",
   "chart": {
     "type": "interval",
     "x_label": "Annualized Sharpe",
