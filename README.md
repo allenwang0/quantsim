@@ -1,15 +1,20 @@
 # quantsim
 
-A Python backtesting framework for daily stock prices with two engines: an event-driven one that models orders and fills, and a fast vectorized one for testing many parameter settings. It is built to make two mistakes hard: trading on prices you could not have known yet, and overfitting to the past.
+A Python backtester for daily stock prices with two engines that agree: an event-driven one that models orders and fills, and a vectorized one for sweeping many parameter settings. It is built to make two mistakes hard: trading on prices you could not have known yet, and overfitting to the past.
 
-![Backtest report built from synthetic data](docs/img/report.png)
+**[Read the report →](https://allenwang0.github.io/quantsim/)** measurements, methodology and limitations, built from the committed results.
+
+![quantsim's own HTML backtest report on synthetic data](docs/img/report.png)
 
 ## Highlights
 
-- **Two independent engines that agree.** A parity test runs the same strategy through both and requires matching trade counts and returns within 0.5 percentage points.
-- **Up to 500x faster vectorized engine** (Numba): 50 assets over 10 years in 0.11 s versus 54.7 s event-driven.
-- **No lookahead by default.** A signal on one day fills at the next day's open; the report measures how much same-day fills would change returns.
-- **Overfitting checks:** walk-forward testing, a bootstrap confidence interval on the Sharpe ratio, and a deflated Sharpe check that discounts the Sharpe ratio for how many strategy variants were tried.
+<!-- results:start -->
+- **Two engines that agree.** A parity test runs one strategy through both and requires equal trade counts and total returns within 0.5 pp.
+- **Vectorized engine 460× faster** on 50 assets × 10 years: 0.10 s vs 45.5 s event-driven (median of 5 runs, synthetic data, one strategy, Apple M5 Pro).
+- **No lookahead by default.** A signal on one day fills at the next day's open; on the seeded demo, same-bar fills would change the SMA crossover's return by +1.3 pp.
+- **Overfitting checks.** Walk-forward testing, bootstrap Sharpe intervals and a deflated Sharpe ratio that discounts for 28 trials. On synthetic data the deflated Sharpe is 0.00: no edge is certified.
+- **Default costs:** 0.1% commission + 0.1% slippage per trade in the vectorized engine.
+<!-- results:end -->
 
 ## Run it
 
@@ -25,11 +30,13 @@ open reports/demo/index.html
 
 - Event-driven engine: each day's bar goes to the strategy, which emits signals; the portfolio turns them into orders that fill at the next open with slippage and commission.
 - Vectorized engine: a signal function sets the position wanted at each close, and a Numba loop trades it at the next bar's price.
-- Walk-forward testing picks parameters on a training window and scores them only on the following unseen window.
+- Walk-forward testing picks parameters on a training window and scores them only on the following unseen window; the deflated Sharpe ratio then discounts the result for every setting tried.
 - Real prices come from yfinance and are cached locally; paper trading runs through Alpaca.
 
 ## Limitations
 
+- All published numbers come from seeded synthetic prices, one machine and one strategy.
+- Bars are stored unadjusted and adjusted when read; event-engine bars carry the raw open but the adjusted close.
 - Daily bars only; no options backtesting.
 - yfinance data is unofficial, and the default stock list is today's large caps, so long backtests carry survivorship bias.
 - Paper trading by default; live trading needs two explicit opt-ins. Not financial advice.
