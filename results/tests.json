@@ -1,13 +1,13 @@
 {
   "command": "pytest -m \"not live and not browser\" -q",
-  "sha": "f2e164c6e6c1f71f7b62f12587d57aa487120676",
-  "date": "2026-11-23T05:03:41Z",
+  "sha": "e946899c04b99808396941c53869522d47891d83",
+  "date": "2026-11-23T05:08:21Z",
   "python": "3.13.14",
-  "passed": 225,
+  "passed": 226,
   "failed": 0,
   "errors": 0,
   "skipped": 0,
   "deselected": 6,
-  "seconds": 35.76,
-  "summary": "225 passed, 6 deselected in 35.76s"
+  "seconds": 32.8,
+  "summary": "226 passed, 6 deselected in 32.80s"
 }
