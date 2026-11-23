@@ -953,7 +953,7 @@ def build_page(results, bench, tests, facts, shas):
                             Raw(
                                 f"The parity test runs an SMA {facts['parity_fast']}/{facts['parity_slow']} crossover "
                                 f"over {facts['parity_bars']} bars through both engines and requires the same number of "
-                                f"round trips and total returns within {tol}.{R('E3')}"
+                                f"round trips and total returns within that gap.{R('E3')}"
                             ),
                         ),
                     ]
@@ -1277,7 +1277,7 @@ def build_page(results, bench, tests, facts, shas):
     )
     eng_sec = rk.section(
         "engines",
-        f"Two engines trade the same signal one bar later and agree within {tol}",
+        "Two engines trade the same signal one bar later and reach the same result",
         eng_body,
         eyebrow="Design",
     )
@@ -1333,7 +1333,7 @@ def build_page(results, bench, tests, facts, shas):
             rk.tag(
                 "p",
                 Raw(
-                    f"Vectorized time stays near {secs(small['vectorized_median_s'])} at every size, consistent with fixed "
+                    "Vectorized time is flat from the smallest to the largest run, consistent with fixed "
                     f"costs (signal setup and analytics) dominating rather than the per-asset loop; this benchmark does not "
                     f"separate them. Even the slowest vectorized run beat the fastest event run by "
                     f"{ratio(d['speedup_floor'])} at {big['assets']} assets."
@@ -1351,9 +1351,7 @@ def build_page(results, bench, tests, facts, shas):
     )
     speed_sec = rk.section(
         "speed",
-        f"The vectorized engine runs {big['assets']} assets in "
-        f"{secs(big['vectorized_median_s'])}, event-driven in "
-        f"{secs(big['event_median_s'])}",
+        "Event-driven time grows with the number of assets; vectorized time stays flat",
         speed_body,
         eyebrow="Speed",
     )
@@ -1432,7 +1430,7 @@ def build_page(results, bench, tests, facts, shas):
             (
                 "One machine, one strategy.",
                 f"Timings are from one {cpu} and the SMA crossover only; the "
-                f"{ratio(d['speedup'])} ratio depends on both.",
+                "speed ratio depends on both.",
             ),
             (
                 "Shared machine.",
