@@ -1,4 +1,4 @@
-/* report-kit v1.0.6 — charts. Canonical: /Users/allenwang/Desktop/report-design-system/kit/charts.js
+/* report-kit v1.0.6 — charts. Canonical: report-design-system/kit/charts.js
    Responsive SVG drawn at real pixel width (text never scales down), redrawn on resize.
    Colors come from CSS tokens (var(--series-1) …), so light/dark work automatically.
    Every chart: pass `table` target to also render an HTML table twin, and `title` for the SVG <desc>.
