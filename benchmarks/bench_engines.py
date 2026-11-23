@@ -5,7 +5,8 @@ Time the event-driven and vectorized engines on the same synthetic data.
 
 10 years (2520 bars) of seeded synthetic GBM with regime shifts for 1, 10
 and 50 assets, SMA 50/200 crossover in both engines. Reports the median of
---runs timed runs after one warm-up run (which also compiles Numba).
+--runs timed runs after one warm-up run (which also compiles Numba); every
+timed sample and the load average before and after are saved too.
 Timed: the vectorized run including its analytics, and the event engine's
 run() loop. Event-engine construction, which loads bars from SQLite, is not
 timed. Writes benchmarks/results.json and benchmarks/results.md.
@@ -13,11 +14,13 @@ timed. Writes benchmarks/results.json and benchmarks/results.md.
 
 import argparse
 import json
+import os
 import platform
 import statistics
 import subprocess
 import tempfile
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -94,6 +97,8 @@ def main(argv=None) -> dict:
     parser.add_argument("--runs", type=int, default=5)
     args = parser.parse_args(argv)
 
+    started = datetime.now(timezone.utc).replace(microsecond=0)
+    load_before = [round(v, 2) for v in os.getloadavg()]
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         for n_assets in ASSET_COUNTS:
@@ -106,6 +111,7 @@ def main(argv=None) -> dict:
                     for i in range(args.runs)
                 ]
                 row[f"{engine}_median_s"] = statistics.median(samples)
+                row[f"{engine}_runs_s"] = samples
                 print(
                     f"{n_assets:>3} assets  {engine:<10} median {row[f'{engine}_median_s']:.4f} s",
                     flush=True,
@@ -122,6 +128,9 @@ def main(argv=None) -> dict:
         "numba": numba_version(),
         "numpy": np.__version__,
         "quantsim": quantsim.__version__,
+        "date": started.isoformat().replace("+00:00", "Z"),
+        "loadavg_before": load_before,
+        "loadavg_after": [round(v, 2) for v in os.getloadavg()],
         "rows": rows,
     }
     (OUT_DIR / "results.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -144,7 +153,8 @@ def markdown_table(results: dict) -> str:
     lines.append(
         f"Median of {results['runs']} runs after a warm-up. {results['data']}; "
         f"{results['strategy']}. CPU: {results['cpu']}; Python {results['python']}, "
-        f"NumPy {results['numpy']}, Numba {results['numba']}."
+        f"NumPy {results['numpy']}, Numba {results['numba']}. Load average (1/5/15 min) "
+        f"{results['loadavg_before']} before, {results['loadavg_after']} after."
     )
     return "\n".join(lines) + "\n"
 
