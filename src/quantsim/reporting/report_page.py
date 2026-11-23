@@ -621,9 +621,8 @@ def render_html(results: Dict) -> str:
     kit_css = (HERE / "kit" / "report.css").read_text()
     local_css = (HERE / "report.local.css").read_text()
     kit_js = "".join((HERE / "kit" / f).read_text() for f in ("report.js", "charts.js"))
-    kit_js = kit_js.replace("</script", "<\\/script")  # a comment in report.js names the tag
     local_js = (HERE / "report.local.js").read_text()
-    title = "QuantSim backtest report"
+    title = "QuantSim backtest"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -654,7 +653,7 @@ def render_html(results: Dict) -> str:
     <p class="lede">This run is a control. On {html.escape(source)}, a trend rule should not show
     reliable skill, and the walk-forward, bootstrap and deflated-Sharpe checks should say so. They do.{hero_numbers}</p>
     <p class="conditions" id="banner"><span class="key">{html.escape(key)}</span><span>One asset ({html.escape(str(data.get("symbol", "")))}), {data.get("start", "")} to {data.get("end", "")}</span><span>Next-bar-open fills</span></p>
-    <figure class="figure plain hero-fig" aria-labelledby="f-hero">
+    <figure class="figure hero-fig" aria-labelledby="f-hero">
       <p class="label" id="f-hero">Out-of-sample Sharpe, pooled over all test windows, with its {first["sharpe_uncertainty"]["ci_level_pct"] if first else ""} % bootstrap interval. The vertical rule at zero means no edge.</p>
       <div id="c-hero"></div>
     </figure>

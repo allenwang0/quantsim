@@ -1,4 +1,4 @@
-/* report-kit v1.0.0 — canonical: /Users/allenwang/Desktop/report-design-system/kit/report.css. Do not edit vendored copies; edit canonical and re-sync. Spec: UNIVERSAL_REPORT_DESIGN_SPEC.md */
+/* report-kit v1.0.6 — canonical: /Users/allenwang/Desktop/report-design-system/kit/report.css. Do not edit vendored copies; edit canonical and re-sync. Spec: UNIVERSAL_REPORT_DESIGN_SPEC.md */
 :root{color-scheme:light;
 --font-sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter",system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
 --font-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
@@ -8,17 +8,17 @@
 --radius-card:20px;--radius-inner:12px;--radius-control:980px;--target-min:44px;
 --bg:#f5f5f7;--surface-1:#fff;--surface-2:#f2f2f4;--surface-bar:rgba(245,245,247,.8);
 --ink-1:#19191b;--ink-2:#5b5b63;--ink-3:#6e6e73;--hairline:#d8d8dd;--accent:#0066cc;--grid:#e8e8ed;--axis:#c7c7cc;
---series-1:#2a78d6;--series-2:#eb6834;--series-neutral:#8e8e93;--status-warn:#b07800;
+--series-1:#2a78d6;--series-2:#eb6834;--series-3:#1baf7a;--series-4:#eda100;--series-neutral:#8e8e93;--domain-up:#1baf7a;--domain-down:#e34948;--status-good:#0ca30c;--status-bad:#d03b3b;--status-warn:#b07800;
 --shadow-card:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);--shadow-hover:0 2px 4px rgba(0,0,0,.05),0 10px 28px rgba(0,0,0,.08);
 --dur-fast:120ms;--dur-base:240ms;--dur-slow:400ms;--ease-out:cubic-bezier(.2,.8,.2,1)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
 --bg:#0b0b0b;--surface-1:#1c1c1e;--surface-2:#2c2c2e;--surface-bar:rgba(11,11,11,.72);
 --ink-1:#f5f5f7;--ink-2:#a1a1a6;--ink-3:#98989d;--hairline:#2c2c2e;--accent:#2997ff;--grid:#2c2c2e;--axis:#48484a;
---series-1:#3987e5;--series-2:#d95926;--status-warn:#fab219;--shadow-card:none;--shadow-hover:0 0 0 1px rgba(255,255,255,.14)}}
+--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;--domain-up:#199e70;--domain-down:#e66767;--status-warn:#fab219;--shadow-card:none;--shadow-hover:0 0 0 1px rgba(255,255,255,.14)}}
 :root[data-theme="dark"]{color-scheme:dark;
 --bg:#0b0b0b;--surface-1:#1c1c1e;--surface-2:#2c2c2e;--surface-bar:rgba(11,11,11,.72);
 --ink-1:#f5f5f7;--ink-2:#a1a1a6;--ink-3:#98989d;--hairline:#2c2c2e;--accent:#2997ff;--grid:#2c2c2e;--axis:#48484a;
---series-1:#3987e5;--series-2:#d95926;--status-warn:#fab219;--shadow-card:none;--shadow-hover:0 0 0 1px rgba(255,255,255,.14)}
+--series-1:#3987e5;--series-2:#d95926;--series-3:#199e70;--series-4:#c98500;--domain-up:#199e70;--domain-down:#e66767;--status-warn:#fab219;--shadow-card:none;--shadow-hover:0 0 0 1px rgba(255,255,255,.14)}
 @media (max-width:1023px){:root{--page-gutter:24px;--grid-gap:16px;--section-gap:80px}}
 @media (max-width:599px){:root{--page-gutter:16px;--grid-gap:12px;--section-gap:64px;--card-pad:20px;--card-pad-xl:20px;--fs-h3:19px;--fs-metric:34px;--fs-lede:18px;--fs-tick:11px;--fs-code:13px}}
 @media (prefers-reduced-motion:reduce){:root{--dur-fast:0ms;--dur-base:0ms;--dur-slow:0ms}}
@@ -104,6 +104,7 @@ dl.kv dt{color:var(--ink-3)}dl.kv dd{font-weight:500;overflow-wrap:anywhere}
 .plot text.op{fill:var(--ink-1);font-size:13px;font-weight:600}
 .toolbar{display:flex;justify-content:flex-end;margin-top:16px}
 figcaption{font-size:var(--fs-small);line-height:1.45;color:var(--ink-2);max-width:var(--measure);margin-top:16px}
+.figure figcaption{padding-top:12px;border-top:1px solid var(--hairline)}
 
 /* Segmented control */
 .seg{display:inline-flex;background:var(--surface-2);border-radius:var(--radius-control);padding:2px;gap:2px}
@@ -168,3 +169,4 @@ footer a{font-size:15px;font-weight:500;margin-right:20px}
 .codewrap{position:relative}
 .related{display:grid;gap:8px;margin-top:16px}
 @media (forced-colors:active){.card,.figure{border-color:CanvasText}:focus-visible{outline-color:Highlight}}
+.codewrap pre{padding-top:44px}

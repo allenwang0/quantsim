@@ -1,5 +1,5 @@
-/* report-kit v1.0.0 — behaviour helpers. Canonical: /Users/allenwang/Desktop/report-design-system/kit/report.js
-   No dependencies. Load with <script src="kit/report.js" defer></script>.
+/* report-kit v1.0.6 — behaviour helpers. Canonical: /Users/allenwang/Desktop/report-design-system/kit/report.js
+   No dependencies. Load with a deferred script tag pointing at kit/report.js.
    Theme: put the one-line theme script (see README) in <head> BEFORE css so there's no flash. */
 (function () {
   "use strict";

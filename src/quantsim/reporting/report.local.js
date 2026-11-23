@@ -4,29 +4,22 @@
   "use strict";
   function num(v, d) { var t = (+v).toFixed(d == null ? 2 : d); return v < 0 ? t.replace("-", "−") : t; }
   function yearFrac(s) { var d = new Date(s + "T00:00:00Z"), y = d.getUTCFullYear(), a = Date.UTC(y, 0, 1), b = Date.UTC(y + 1, 0, 1); return y + (d - a) / (b - a); }
-  /* Kit workaround: dotRange's default ticks can start below the data minimum and draw off
-     the left edge. Passing xmin/xmax on a 0.5 grid makes the first tick the axis start. */
-  function bounds(rows) { var lo = 0, hi = 0; rows.forEach(function (r) { lo = Math.min(lo, r.lo); hi = Math.max(hi, r.hi); }); return { xmin: Math.floor(lo * 2) / 2, xmax: Math.ceil(hi * 2) / 2 }; }
   function draw(results) {
     var S = results.strategies || {}, names = Object.keys(S), blue = "var(--series-1)", orange = "var(--series-2)";
     if (names.length) {
-      var hb = bounds(names.map(function (n) { var u = S[n].sharpe_uncertainty; return { lo: u.ci_low, hi: u.ci_high }; }));
       RKCharts.dotRange("#c-hero", {
-        xmin: hb.xmin, xmax: hb.xmax,
         series: [{ key: "s", name: "Out-of-sample Sharpe", color: blue }],
         rows: names.map(function (n) { var u = S[n].sharpe_uncertainty; return { label: S[n].label, series: { s: { lo: u.ci_low, mid: u.point, hi: u.ci_high, tip: num(u.point) + " [" + num(u.ci_low) + ", " + num(u.ci_high) + "]" } } }; }),
-        refs: [{ x: 0, label: "" }], xLabel: "Annualized Sharpe ratio", format: function (v) { return num(v, 1); },
+        refs: [{ x: 0, label: "No edge" }], xLabel: "Annualized Sharpe ratio", format: function (v) { return num(v, 1); },
         title: names.map(function (n) { var u = S[n].sharpe_uncertainty; return S[n].label + ": Sharpe " + u.point + ", 95% interval " + u.ci_low + " to " + u.ci_high; }).join(". ")
       });
     }
     names.forEach(function (n) {
       var wf = S[n].walk_forward;
-      var wb = bounds(wf.windows.map(function (w) { return { lo: w.ci_low, hi: w.ci_high }; }));
       RKCharts.dotRange("#c-win-" + n, {
-        xmin: wb.xmin, xmax: wb.xmax,
         series: [{ key: "s", name: "Sharpe", color: blue }],
         rows: wf.windows.map(function (w) { return { label: w.test_start.slice(0, 4) + "–" + w.test_end.slice(2, 4), series: { s: { lo: w.ci_low, mid: w.oos_sharpe, hi: w.ci_high, tip: num(w.oos_sharpe) + " [" + num(w.ci_low) + ", " + num(w.ci_high) + "]" } } }; }),
-        refs: [{ x: 0, label: "" }], xLabel: "Annualized Sharpe ratio", format: function (v) { return v === Math.round(v) ? num(v, 0) : num(v, 1); },
+        refs: [{ x: 0, label: "No edge" }], xLabel: "Annualized Sharpe ratio", format: function (v) { return v === Math.round(v) ? num(v, 0) : num(v, 1); },
         title: S[n].label + ": out-of-sample Sharpe per test window with 95% intervals"
       });
       RKCharts.line("#c-eq-" + n, {

@@ -7,4 +7,3 @@
 .s > .tablewrap{max-width:760px;margin-top:24px;background:var(--surface-1)}
 /* Kit workaround: charts.js draws at least 260px wide; at 320px a figure's content box is
    ~246px, so the SVG scaled down and tick text fell under 11px. Narrow the padding there. */
-@media (max-width:359px){.figure{padding-left:12px;padding-right:12px}}

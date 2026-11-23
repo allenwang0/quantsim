@@ -1,4 +1,4 @@
-/* report-kit v1.0.0 — charts. Canonical: /Users/allenwang/Desktop/report-design-system/kit/charts.js
+/* report-kit v1.0.6 — charts. Canonical: /Users/allenwang/Desktop/report-design-system/kit/charts.js
    Responsive SVG drawn at real pixel width (text never scales down), redrawn on resize.
    Colors come from CSS tokens (var(--series-1) …), so light/dark work automatically.
    Every chart: pass `table` target to also render an HTML table twin, and `title` for the SVG <desc>.
@@ -17,15 +17,16 @@
   function ticks(min, max, n) { var step = nice((max - min) / (n || 5)) || 1, out = [], v = Math.floor(min / step + 1e-9) * step; out.push(+v.toPrecision(12)); while (v < max - step * 1e-9) { v += step; out.push(+v.toPrecision(12)); } return out; }
   function logTicks(min, max) { var out = []; for (var e = Math.floor(Math.log10(min)); Math.pow(10, e) <= max * 1.0001; e++) out.push(Math.pow(10, e)); return out; }
   function deffmt(v) { var a = Math.abs(v); return a >= 1e9 ? +(v / 1e9).toPrecision(3) + "B" : a >= 1e6 ? +(v / 1e6).toPrecision(3) + "M" : a >= 1e4 ? +(v / 1e3).toPrecision(3) + "K" : (+v.toPrecision(3)).toLocaleString("en-US"); }
-  function width(el) { return Math.max(260, el.clientWidth || el.parentNode.clientWidth || 600); }
+  function width(el) { return Math.max(200, el.clientWidth || el.parentNode.clientWidth || 600); }
   function mount(el, draw) {
     if (typeof el === "string") el = document.querySelector(el);
     if (!el) return;
     el.classList.add("plot");
     var last = 0, t;
-    function go() { var w = width(el); if (w === last) return; last = w; draw(el, w); }
+    function go() { if (!el.isConnected) return; var w = width(el); if (w === last) return; last = w; draw(el, w); }
     go();
-    if ("ResizeObserver" in window) new ResizeObserver(function () { clearTimeout(t); t = setTimeout(go, 100); }).observe(el);
+    if (el._rkObs) el._rkObs.disconnect(); /* re-mounting replaces the old chart instead of stacking observers */
+    if ("ResizeObserver" in window) { el._rkObs = new ResizeObserver(function () { clearTimeout(t); if (!el.isConnected) { el._rkObs.disconnect(); return; } t = setTimeout(go, 100); }); el._rkObs.observe(el); }
     return el;
   }
   function tip(el) {
@@ -94,11 +95,11 @@
       var xmin = o.xmin != null ? o.xmin : (o.log ? lo : Math.min(0, lo)), xmax = o.xmax != null ? o.xmax : hi * 1.05, tk, x;
       if (o.log) { tk = logTicks(xmin, xmax); xmin = tk[0]; xmax = Math.max(xmax, tk[tk.length - 1]); x = function (v) { return L + (W - L - R) * (Math.log10(Math.max(v, xmin)) - Math.log10(xmin)) / (Math.log10(xmax) - Math.log10(xmin)); }; }
       else if (o.ticks && o.ticks.step) { var st = o.ticks.step, k = Math.max(1, Math.ceil((xmax - xmin) / st / (narrow ? 4 : 8))); xmax = Math.ceil(xmax / (st * k)) * st * k; tk = []; for (var v = xmin; v <= xmax + 1e-9; v += st * k) tk.push(v); x = function (v) { return L + (W - L - R) * (v - xmin) / (xmax - xmin); }; }
-      else { tk = ticks(xmin, xmax, narrow ? 4 : 6); xmax = tk[tk.length - 1]; x = function (v) { return L + (W - L - R) * (v - xmin) / (xmax - xmin); }; }
+      else { tk = ticks(xmin, xmax, narrow ? 4 : 6); xmin = tk[0]; xmax = tk[tk.length - 1]; x = function (v) { return L + (W - L - R) * (v - xmin) / (xmax - xmin); }; }
       var s = svgOpen(W, H, o.title);
       tk.forEach(function (t) { s += '<line x1="' + x(t) + '" x2="' + x(t) + '" y1="' + top + '" y2="' + (H - B) + '" stroke="var(--grid)"/><text x="' + x(t) + '" y="' + (H - B + 16) + '" text-anchor="middle">' + fmt(t) + "</text>"; });
       if (o.xLabel) s += '<text x="' + ((L + W - R) / 2) + '" y="' + (H - 4) + '" text-anchor="middle">' + esc(o.xLabel) + (o.log ? " (log scale)" : "") + "</text>";
-      (o.refs || []).forEach(function (rf) { s += '<line x1="' + x(rf.x) + '" x2="' + x(rf.x) + '" y1="' + top + '" y2="' + (H - B) + '" stroke="var(--ink-3)"/><text x="' + (x(rf.x) + 4) + '" y="' + (top + 10) + '">' + esc(rf.label) + "</text>"; });
+      (o.refs || []).forEach(function (rf) { s += '<line x1="' + x(rf.x) + '" x2="' + x(rf.x) + '" y1="' + top + '" y2="' + (H - B) + '" stroke="var(--ink-3)"/><text x="' + (x(rf.x) + 4) + '" y="' + (H - B - 6) + '">' + esc(rf.label) + "</text>"; });
       o.rows.forEach(function (r, i) {
         var y0 = top + i * rowH;
         s += narrow ? '<text class="op" x="0" y="' + (y0 + 12) + '">' + esc(r.label) + "</text>" : '<text class="op" x="0" y="' + (y0 + lab + series.length * laneH / 2 + 4) + '">' + esc(r.label) + "</text>";
@@ -132,7 +133,7 @@
       yt.forEach(function (t) { s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(t) + '" y2="' + Y(t) + '" stroke="var(--grid)"/><text x="' + (L - 8) + '" y="' + (Y(t) + 4) + '" text-anchor="end">' + fmt(t) + "</text>"; });
       xt.forEach(function (t) { s += '<text x="' + X(t) + '" y="' + (H - B + 18) + '" text-anchor="middle">' + xfmt(t) + "</text>"; });
       if (o.xLabel) s += '<text x="' + ((L + W - R) / 2) + '" y="' + (H - 4) + '" text-anchor="middle">' + esc(o.xLabel) + "</text>";
-      (o.refs || []).forEach(function (rf) { s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(rf.y) + '" y2="' + Y(rf.y) + '" stroke="var(--ink-3)"/><text x="' + (W - R) + '" y="' + (Y(rf.y) - 6) + '" text-anchor="end">' + esc(rf.label) + "</text>"; });
+      (o.refs || []).forEach(function (rf) { s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(rf.y) + '" y2="' + Y(rf.y) + '" stroke="var(--ink-3)"/><text x="' + (L + 6) + '" y="' + (Y(rf.y) - 6) + '">' + esc(rf.label) + "</text>"; });
       o.series.forEach(function (se) {
         if (se.lo && se.hi) { var up = [], dn = []; xs.forEach(function (xv, i) { if (se.lo[i] == null) return; up.push(X(xv) + "," + Y(se.hi[i])); dn.unshift(X(xv) + "," + Y(se.lo[i])); }); s += '<polygon points="' + up.concat(dn).join(" ") + '" fill="' + se.color + '" opacity=".12"/>'; }
         var d = "", pen = false; xs.forEach(function (xv, i) { var v = se.y[i]; if (v == null) { pen = false; return; } d += (pen ? "L" : "M") + X(xv) + "," + Y(v); pen = true; });
