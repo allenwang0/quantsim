@@ -4,61 +4,31 @@
   "sha": "23bb9f8bfaa7a18931816627367049078cfaf3b9",
   "generated_at": "2026-11-23T04:58:13Z",
   "command": "quantsim report --prices tests/fixtures/synthetic_prices.csv --strategy sma momentum --out results/demo --card",
-  "data_note": "Seeded synthetic GBM with regime shifts, seed 20240611",
+  "data_note": "Synthetic GBM with regime shifts, seed 7, 2520 daily bars (10 years); SMA crossover 50/200; median of 5 runs, Apple M5 Pro",
   "metric": {
-    "label": "Deflated Sharpe ratio",
-    "value": 0.0,
-    "unit": "probability",
+    "label": "Vectorized vs event-driven speed, 50 assets",
+    "value": 459.9,
+    "unit": "x",
     "higher_is_better": true
   },
-  "takeaway": "SMA crossover: deflated Sharpe 0.0 after 28 trials; out-of-sample return -4.0%.",
+  "takeaway": "Vectorized engine 460x faster than event-driven, 50 assets x 10 years, synthetic data; engines agree within 0.5 pp.",
   "chart": {
     "type": "interval",
-    "x_label": "Annualized Sharpe",
-    "x_unit": "",
-    "x_scale": "linear",
+    "x_label": "Seconds per backtest (min, median, max)",
+    "x_unit": "s",
+    "x_scale": "log",
     "rows": [
       {
-        "label": "2016-11-25 to 2017-11-13",
-        "low": -1.64,
-        "mid": 0.31,
-        "high": 2.75
+        "label": "Vectorized",
+        "low": 0.0964,
+        "mid": 0.099,
+        "high": 0.1056
       },
       {
-        "label": "2017-11-14 to 2018-10-31",
-        "low": -2.74,
-        "mid": -1.04,
-        "high": 0.81
-      },
-      {
-        "label": "2018-11-01 to 2019-10-18",
-        "low": -2.04,
-        "mid": 0.64,
-        "high": 2.9
-      },
-      {
-        "label": "2019-10-21 to 2020-10-06",
-        "low": -3.79,
-        "mid": -1.73,
-        "high": 0.54
-      },
-      {
-        "label": "2020-10-07 to 2021-09-23",
-        "low": -3.29,
-        "mid": -1.16,
-        "high": 0.62
-      },
-      {
-        "label": "2021-09-24 to 2022-09-12",
-        "low": -2.13,
-        "mid": -0.61,
-        "high": 1.12
-      },
-      {
-        "label": "2022-09-13 to 2023-08-30",
-        "low": -2.28,
-        "mid": 0.14,
-        "high": 2.53
+        "label": "Event-driven",
+        "low": 43.3134,
+        "mid": 45.5319,
+        "high": 48.5045
       }
     ]
   }
