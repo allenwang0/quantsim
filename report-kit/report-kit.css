@@ -1,4 +1,4 @@
-/* report-kit v1 — shared tokens and components for project reports. Inlined by report_kit.py. */
+/* report-kit v1.1 — shared tokens and components for project reports. Inlined by report_kit.py. */
 :root {
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
   --space-6: 32px; --space-7: 48px; --space-8: 64px; --space-9: 96px; --space-10: 128px;
@@ -78,7 +78,7 @@ code, pre, kbd { font-family: var(--mono); font-size: .88em; }
 
 /* Hero */
 .hero { padding-block: var(--space-8); }
-.hero-grid { display: grid; grid-template-columns: 7fr 5fr; gap: var(--space-7); align-items: end; }
+.hero-grid { display: grid; grid-template-columns: 7fr 5fr; gap: var(--space-7); align-items: start; }
 .eyebrow { font-size: var(--fs-eyebrow); font-weight: 600; line-height: 1.2; letter-spacing: .06em; text-transform: uppercase;
   color: var(--text-2); margin: 0 0 var(--space-4); }
 .hero-title { font-size: var(--fs-hero); font-weight: 700; line-height: 1.05; letter-spacing: -.025em; }
@@ -103,11 +103,14 @@ code, pre, kbd { font-family: var(--mono); font-size: .88em; }
 /* Sticky section nav */
 .report-nav { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--canvas) 86%, transparent);
   -webkit-backdrop-filter: saturate(1.8) blur(16px); backdrop-filter: saturate(1.8) blur(16px); border-bottom: 1px solid var(--border); }
-.report-nav ul { display: flex; gap: var(--space-5); margin: 0 auto; padding: 0 var(--gutter); max-width: calc(var(--page-max) + 2 * var(--gutter));
+.report-nav ul, .report-toc ul { display: flex; gap: 0 var(--space-5); margin: 0 auto; padding: 0 var(--gutter); max-width: calc(var(--page-max) + 2 * var(--gutter));
   list-style: none; overflow-x: auto; scrollbar-width: none; }
-.report-nav a { display: flex; align-items: center; min-height: var(--nav-h); white-space: nowrap; font-size: var(--fs-small);
+.report-nav a, .report-toc a { display: flex; align-items: center; min-height: var(--nav-h); white-space: nowrap; font-size: var(--fs-small);
   color: var(--text-2); text-decoration: none; }
-.report-nav a:hover { color: var(--text); }
+.report-nav a:hover, .report-toc a:hover { color: var(--text); }
+/* Inline contents (Tier B): the nav's type and divider, not sticky, wraps instead of scrolling */
+.report-toc { border-bottom: 1px solid var(--border); }
+.report-toc ul { flex-wrap: wrap; overflow: visible; }
 
 /* Sections */
 .section { padding-top: var(--section-gap); }
@@ -168,6 +171,8 @@ svg[role=img] { max-width: 100%; height: auto; }
 @media (max-width: 734px) { .v-t { display: none; } .v-p { display: block; } }
 .figure figcaption { font-size: var(--fs-small); line-height: 1.45; color: var(--text-2); margin-top: var(--space-5); max-width: var(--measure); }
 .figure figcaption p { margin: 0 0 var(--space-2); }
+.fig-chart img, .fig-chart picture, .hero-figure img, .hero-figure picture { display: block; max-width: 100%; height: auto; }
+.fig-chart img, .hero-figure img { border-radius: var(--radius-sm); border: 1px solid var(--border); }
 details.data { margin-top: var(--space-1); font-size: var(--fs-small); }
 details.data summary { cursor: pointer; color: var(--accent); font-weight: 600; min-height: 44px; display: inline-flex; align-items: center; }
 details.data summary::marker { color: var(--text-3); }
@@ -212,7 +217,7 @@ pre.code { margin: 0 0 var(--space-4); padding: var(--space-4); background: var(
     linear-gradient(to left, var(--grid), transparent) right / 8px 100% no-repeat scroll; }
 .card, .figure { --tw-bg: var(--surface); }
 table.bench { border-collapse: collapse; width: 100%; font-size: var(--fs-small); }
-table.bench caption { text-align: left; font-weight: 600; color: var(--text); padding: 0 0 var(--space-2); }
+.table-caption { font-size: var(--fs-small); font-weight: 600; color: var(--text); margin: 0 0 var(--space-2); }
 table.bench th, table.bench td { padding: var(--space-3) var(--space-3); height: 44px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
 table.bench thead th { font-weight: 600; color: var(--text-2); }
 table.bench tbody th { font-weight: 500; }

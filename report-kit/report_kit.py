@@ -1,4 +1,4 @@
-"""report-kit v1: page shell, HTML components and SVG charts for project reports.
+"""report-kit v1.1: page shell, HTML components and SVG charts for project reports.
 
 Python 3.10+, standard library only, deterministic output. Text arguments are
 escaped; pass already-built HTML as Raw (every helper here returns Raw).
@@ -11,7 +11,7 @@ import html
 import math
 import pathlib
 
-KIT_VERSION = "1"
+KIT_VERSION = "1.1"
 CSS_PATH = pathlib.Path(__file__).with_name("report-kit.css")
 
 
@@ -52,6 +52,17 @@ def fnum(value: float, digits: int = 1) -> str:
     return f"{value:,.{digits}f}"
 
 
+NBSP = "\u00a0"
+
+
+def num(value, unit) -> str:
+    """Number and unit joined by a no-break space so the unit never wraps onto its own line.
+
+    value is used as given (format it first, e.g. fnum(x, 1)); returns plain text, escaped on output.
+    """
+    return f"{value}{NBSP}{unit}"
+
+
 # ---------------------------------------------------------------- page shell
 
 THEME_BOOTSTRAP = (
@@ -75,7 +86,7 @@ def page(*, title: str, description: str, canonical: str, header: str, main: str
         f'<meta name="description"{attrs(content=description)}>',
         f'<link rel="canonical"{attrs(href=canonical)}>',
         '<meta name="color-scheme" content="light dark">',
-        f'<meta property="og:type" content="article">',
+        '<meta property="og:type" content="article">',
         f'<meta property="og:title"{attrs(content=title)}>',
         f'<meta property="og:description"{attrs(content=description)}>',
         f'<meta property="og:url"{attrs(content=canonical)}>',
@@ -108,8 +119,13 @@ def ref(eid: str, href: str = "#evidence") -> Raw:
                aria_label=f"Evidence {eid}")
 
 
-def hero(*, eyebrow, title, subtitle, value, label, support=None, context=None, actions=(), figure=None) -> Raw:
-    """Hero with one metric. actions: (label, href, primary)."""
+def hero(*, eyebrow, title, subtitle, value=None, label=None, support=None, context=None, actions=(),
+         figure=None) -> Raw:
+    """Hero with at most one metric. actions: (label, href, primary).
+
+    value=None drops the metric (compact briefs). figure: Raw HTML for the right column (chart,
+    img or picture); top-aligned with the text. Without a figure the text keeps its 7/12 measure.
+    """
     acts = join(tag("a", text, href=href, class_="btn btn-primary" if primary else "btn")
                 for text, href, primary in actions)
     text = join([
@@ -117,7 +133,7 @@ def hero(*, eyebrow, title, subtitle, value, label, support=None, context=None, 
         tag("h1", title, class_="hero-title", id="title"),
         tag("p", subtitle, class_="hero-sub"),
         Raw(f'<p class="hero-metric"><span class="value">{esc(value)}</span>'
-            f'<span class="label">{esc(label)}</span></p>'),
+            f'<span class="label">{esc(label)}</span></p>') if value is not None else None,
         tag("p", support, class_="hero-support") if support else None,
         tag("p", context, class_="hero-context") if context else None,
         tag("div", acts, class_="actions") if actions else None,
@@ -128,9 +144,15 @@ def hero(*, eyebrow, title, subtitle, value, label, support=None, context=None, 
 
 
 def report_nav(items) -> Raw:
-    """Sticky section nav: (id, label) pairs."""
+    """Sticky section nav (Tier A): (id, label) pairs."""
     lis = join(Raw(f'<li>{tag("a", label, href="#" + sid)}</li>') for sid, label in items)
     return Raw(f'<nav class="report-nav" aria-label="Sections"><ul>{lis}</ul></nav>')
+
+
+def toc(items) -> Raw:
+    """Inline contents list (Tier B): report_nav's look, not sticky, wraps instead of scrolling."""
+    lis = join(Raw(f'<li>{tag("a", label, href="#" + sid)}</li>') for sid, label in items)
+    return Raw(f'<nav class="report-toc" aria-label="Contents"><ul>{lis}</ul></nav>')
 
 
 def section(sid: str, headline, body, *, eyebrow=None, intro=None) -> Raw:
@@ -202,7 +224,11 @@ def code(text: str, label: str | None = None) -> Raw:
 
 
 def table(caption, head, rows, *, numeric=(), row_headers=True, wrap_cols=()) -> Raw:
-    """Benchmark table in a scroll wrapper. Cells are text or Raw."""
+    """Benchmark table in a scroll wrapper; the caption sits above the wrapper so it never scrolls.
+
+    Cells are text or Raw. The region and table also carry the caption as aria-label
+    (no ids, so the same table can appear in several variants()).
+    """
     ths = "".join(f'<th scope="col"{attrs(class_="num" if i in numeric else None)}>{esc(h)}</th>' for i, h in enumerate(head))
     body = []
     for row in rows:
@@ -214,8 +240,10 @@ def table(caption, head, rows, *, numeric=(), row_headers=True, wrap_cols=()) ->
             else:
                 cells.append(f"<td{attrs(class_=cls)}>{esc(cell)}</td>")
         body.append(f"<tr>{''.join(cells)}</tr>")
-    return Raw(f'<div class="table-wrap" tabindex="0" role="region" aria-label="{esc(caption)}"><table class="bench">'
-               f"<caption>{esc(caption)}</caption><thead><tr>{ths}</tr></thead><tbody>{''.join(body)}</tbody></table></div>")
+    return Raw(f'<p class="table-caption">{esc(caption)}</p>'
+               f'<div class="table-wrap" tabindex="0" role="region" aria-label="{esc(caption)}">'
+               f'<table class="bench" aria-label="{esc(caption)}"><thead><tr>{ths}</tr></thead>'
+               f"<tbody>{''.join(body)}</tbody></table></div>")
 
 
 def data_table(caption, head, rows, *, numeric=()) -> Raw:
@@ -303,6 +331,30 @@ def log_ticks(lo: float, hi: float) -> list[float]:
     return out
 
 
+def legend(items, *, width, x=0.0, y=12.0) -> tuple[Raw, float]:
+    """Chart key that wraps onto new rows inside `width`. Place it above the plot.
+
+    items: (name, kind, accent[, dashed]) with kind "line" (short stroke) or "dot" (filled circle).
+    Returns (svg fragment, height used) so the caller can push the plot down by that height.
+    """
+    parts, kx, ky = [], x, y
+    for item in items:
+        name, kind, accent = item[:3]
+        dashed = len(item) > 3 and item[3]
+        w = 24 + text_width(name) + 16
+        if kx > x and kx + w - 16 > x + width:
+            kx, ky = x, ky + 20
+        if kind == "dot":
+            parts.append(f'<circle cx="{coord(kx + 9)}" cy="{coord(ky)}" r="4.5" class="{"c-accent" if accent else "c-muted"}"/>')
+        else:
+            dash = ' stroke-dasharray="5 4"' if dashed else ""
+            parts.append(f'<path class="{"c-stroke-accent" if accent else "c-stroke-muted"}" stroke-width="2"{dash} '
+                         f'd="M{coord(kx)} {coord(ky)}H{coord(kx + 18)}"/>')
+        parts.append(svg_text(kx + 24, ky + 4, name, "c-label c-hi" if accent else "c-label"))
+        kx += w
+    return Raw("".join(parts)), ky - y + 20
+
+
 def bar_chart(rows, *, uid, width, title, desc, axis_title, fmt, domain_max=None) -> Raw:
     """Horizontal bars from zero with direct value labels and optional min-max whiskers.
 
@@ -334,7 +386,11 @@ def bar_chart(rows, *, uid, width, title, desc, axis_title, fmt, domain_max=None
             end = max(end, hi)
         parts.append(svg_text(end + 8, y0 + bar_h / 2 + 4.5, fmt(r["value"]), "c-value"))
     base_y = top + len(rows) * row_h + (20 if stacked else 0) - (40 if stacked else 22) + bar_h + 6
-    parts.append(f'<path class="c-axis" d="M{coord(plot_l)} {top - 4}V{coord(base_y)}"/>')
+    if stacked:  # one zero-line tick per bar; a full-height axis would cut through the labels above each bar
+        ys = [top + i * row_h + 20 for i in range(len(rows))]
+        parts.append(f'<path class="c-axis" d="{"".join(f"M{coord(plot_l)} {coord(y - 3)}V{coord(y + bar_h + 3)}" for y in ys)}"/>')
+    else:
+        parts.append(f'<path class="c-axis" d="M{coord(plot_l)} {top - 4}V{coord(base_y)}"/>')
     parts.append(svg_text(plot_l, base_y + 18, axis_title, "c-title"))
     return svg(uid, width, base_y + 26, title, desc, "".join(parts))
 
