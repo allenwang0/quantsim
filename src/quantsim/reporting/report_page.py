@@ -426,6 +426,18 @@ def _strategy_html(name: str, s: Dict, data: Dict, hidden: bool) -> str:
         f"{s['label']}: out-of-sample returns per window",
         "rk-table",
     )
+    spans_zero = sum(w["ci_low"] <= 0 <= w["ci_high"] for w in wf["windows"])
+    win_title = (
+        "Every one-year window's interval includes zero"
+        if spans_zero == n_windows
+        else f"{spans_zero} of {n_windows} one-year windows' intervals include zero"
+    )
+    flat = [w for w in wf["windows"] if w["ci_low"] == w["ci_high"] == w["oos_sharpe"] == 0]
+    flat_note = "".join(
+        f" In {w['test_start'][:4]}–{w['test_end'][2:4]} the strategy held no position, so its "
+        "Sharpe is 0 with no interval."
+        for w in flat
+    )
     same_as_oos = ft["same_bar_open_return_pct"] == wf["oos_return_pct"]
     coincidence = (
         f" The {_pct(ft['same_bar_open_return_pct'])} here equals the walk-forward return by "
@@ -466,10 +478,10 @@ def _strategy_html(name: str, s: Dict, data: Dict, hidden: bool) -> str:
     runs from {_num(su["ci_low"])} to {_num(su["ci_high"])}. Deflating for {trials} trials leaves a
     probability of {wf["dsr"]:.2f} that the Sharpe is real, against {su["dsr_threshold"]} needed.</p>
     <figure class="figure" aria-labelledby="f-win-{name}">
-      <div class="fig-head"><div><h3 id="f-win-{name}">Every one-year window's interval includes zero</h3><p class="sub">Annualized Sharpe per test window · dot = estimate, line = {su["ci_level_pct"]} % bootstrap interval, vertical rule = zero</p></div>{TOGGLE}</div>
+      <div class="fig-head"><div><h3 id="f-win-{name}">{win_title}</h3><p class="sub">Annualized Sharpe per test window · dot = estimate, line = {su["ci_level_pct"]} % bootstrap interval, vertical rule = zero</p></div>{TOGGLE}</div>
       <div id="c-win-{name}"></div>{window_table}
       <figcaption>Out-of-sample daily returns, next-bar-open fills, parameters refit each window.
-      Each window holds one year of daily returns, so intervals are wide.</figcaption>
+      Each window holds one year of daily returns, so intervals are wide.{flat_note}</figcaption>
     </figure>
   </section>
 
