@@ -78,7 +78,8 @@ def card(results: dict, strategy: str) -> dict:
     else:
         note = f"{data['source']}, {data['symbol']}, {data['start']} to {data['end']}"
     takeaway = (
-        f"{s['label']}: deflated Sharpe {dsr} after {s['walk_forward']['total_trials']} trials; "
+        f"{s['label']}{' on synthetic data' if data.get('synthetic') else ''}: no edge. Deflated "
+        f"Sharpe probability {dsr:.2f} after {s['walk_forward']['total_trials']} trials; "
         f"out-of-sample return {s['walk_forward']['oos_return_pct']}%."
     )
     return {
