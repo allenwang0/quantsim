@@ -2,9 +2,10 @@
 The report page must render in a real browser at phone and desktop widths in
 light and dark mode, without console errors or horizontal scrolling.
 
-Needs Playwright's Chromium (python -m playwright install chromium) and
-network access for the pinned Plotly script. Set REPORT_SCREENSHOTS=<dir> to
-keep the screenshots; docs/img/report.png in the README is one of them.
+Needs Playwright's Chromium (python -m playwright install chromium). The page
+is self-contained (report-kit is inlined), so no network is needed. Set
+REPORT_SCREENSHOTS=<dir> to keep the screenshots; docs/img/report.png in the
+README is one of them.
 """
 
 import os
@@ -17,7 +18,6 @@ from tests.test_report import built  # noqa: F401  (module-scoped report fixture
 playwright = pytest.importorskip("playwright.sync_api")
 
 pytestmark = pytest.mark.browser
-VIEW_IDS = ["view-fill", "view-wfo", "view-sharpe", "view-cost", "view-bench"]
 
 
 @pytest.fixture(scope="module")
@@ -42,14 +42,15 @@ def test_report_renders_without_errors_or_overflow(page_path, width, scheme, tmp
         page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
         page.on("pageerror", lambda exc: errors.append(str(exc)))
         page.goto(page_path.as_uri())
-        page.wait_for_function("document.querySelectorAll('.chart .main-svg').length >= 4")
+        # Hero interval chart, two charts per strategy (both strategies drawn) and the benchmark.
+        page.wait_for_function("document.querySelectorAll('svg.chart').length >= 6")
 
         overflow = page.evaluate(
             "document.documentElement.scrollWidth - document.documentElement.clientWidth"
         )
-        failed_views = page.locator(".error").all_inner_texts()
-        for view in VIEW_IDS[:4]:
-            assert page.locator(f"#{view} .takeaway").inner_text().strip(), view
+        # Every evidence section of the visible strategy states its claim as a heading.
+        headings = page.locator("[data-strategy]:not([hidden]) h2").all_inner_texts()
+        assert len(headings) == 3 and all(h.strip() for h in headings), headings
 
         out_dir = Path(os.environ.get("REPORT_SCREENSHOTS", tmp_path))
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -60,5 +61,4 @@ def test_report_renders_without_errors_or_overflow(page_path, width, scheme, tmp
         browser.close()
 
     assert errors == []
-    assert failed_views == []
     assert overflow <= 0

@@ -1,0 +1,9 @@
+/* quantsim report: page-specific layout only. Tokens come from the inlined report-kit. */
+.hero-fig{margin-top:40px;max-width:760px}
+.hero-fig .label{font-size:var(--fs-label);font-weight:600;color:var(--ink-2)}
+.picker{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-top:48px}
+.picker .label{font-size:var(--fs-label);font-weight:600;color:var(--ink-2)}
+.picker + div .bento,[data-strategy] > section:first-child .bento{margin-top:24px}
+.s > .tablewrap{max-width:760px;margin-top:24px;background:var(--surface-1)}
+/* Kit workaround: charts.js draws at least 260px wide; at 320px a figure's content box is
+   ~246px, so the SVG scaled down and tick text fell under 11px. Narrow the padding there. */

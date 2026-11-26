@@ -65,6 +65,9 @@ filterwarnings = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"quantsim.reporting" = ["kit/*", "report.local.*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
